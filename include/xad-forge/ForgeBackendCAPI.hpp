@@ -110,39 +110,75 @@ class ForgeBackendCAPI : public xad::JITBackend
             throw std::runtime_error(std::string("Forge graph creation failed: ") + forge_get_last_error());
 
         // Build graph from JITGraph
+        // Map from XAD node index to Forge node ID (may differ due to constant handling)
+        std::vector<uint32_t> nodeIdMap(jitGraph.nodeCount());
         inputIds_.clear();
+
         for (std::size_t i = 0; i < jitGraph.nodeCount(); ++i)
         {
             ForgeOpCode op = static_cast<ForgeOpCode>(jitGraph.nodes[i].op);
-            uint32_t a = jitGraph.nodes[i].a;
-            uint32_t b = jitGraph.nodes[i].b;
-            uint32_t c = jitGraph.nodes[i].c;
-            double imm = jitGraph.nodes[i].imm;
-            int isActive = (jitGraph.nodes[i].flags & xad::JITNodeFlags::IsActive) != 0 ? 1 : 0;
-            int needsGrad = 0;  // Will be set via mark_diff_input
+            uint32_t nodeId;
 
-            uint32_t nodeId = forge_graph_add_node(graph_, op, a, b, c, imm, isActive, needsGrad);
-            if (nodeId == UINT32_MAX)
-                throw std::runtime_error(std::string("Forge add_node failed: ") + forge_get_last_error());
-
-            // Track input nodes
             if (op == FORGE_OP_INPUT)
+            {
+                // Use dedicated input function
+                nodeId = forge_graph_add_input(graph_);
+                if (nodeId == UINT32_MAX)
+                    throw std::runtime_error(std::string("Forge add_input failed: ") + forge_get_last_error());
                 inputIds_.push_back(nodeId);
+            }
+            else if (op == FORGE_OP_CONSTANT)
+            {
+                // For constants, XAD stores the constPool index in node.a
+                // We need to look up the actual value and use forge_graph_add_constant
+                uint32_t constIndex = jitGraph.nodes[i].a;
+                if (constIndex >= jitGraph.const_pool.size())
+                    throw std::runtime_error("Invalid constant pool index in JITGraph");
+                double constValue = jitGraph.const_pool[constIndex];
+                nodeId = forge_graph_add_constant(graph_, constValue);
+                if (nodeId == UINT32_MAX)
+                    throw std::runtime_error(std::string("Forge add_constant failed: ") + forge_get_last_error());
+            }
+            else
+            {
+                // For all other operations, remap operand indices and use generic add_node
+                uint32_t a = jitGraph.nodes[i].a;
+                uint32_t b = jitGraph.nodes[i].b;
+                uint32_t c = jitGraph.nodes[i].c;
+
+                // Remap operand indices from XAD to Forge node IDs
+                if (a < i) a = nodeIdMap[a];
+                if (b < i) b = nodeIdMap[b];
+                if (c < i) c = nodeIdMap[c];
+
+                double imm = jitGraph.nodes[i].imm;
+                int isActive = (jitGraph.nodes[i].flags & xad::JITNodeFlags::IsActive) != 0 ? 1 : 0;
+                int needsGrad = 0;  // Will be set via mark_diff_input
+
+                nodeId = forge_graph_add_node(graph_, op, a, b, c, imm, isActive, needsGrad);
+                if (nodeId == UINT32_MAX)
+                    throw std::runtime_error(std::string("Forge add_node failed: ") + forge_get_last_error());
+            }
+
+            nodeIdMap[i] = nodeId;
         }
 
-        // Mark outputs
-        outputIds_.assign(jitGraph.output_ids.begin(), jitGraph.output_ids.end());
-        for (auto outputId : outputIds_)
+        // Mark outputs (remap from XAD indices to Forge node IDs)
+        outputIds_.clear();
+        for (auto xadOutputId : jitGraph.output_ids)
         {
-            ForgeError err = forge_graph_mark_output(graph_, outputId);
+            uint32_t forgeOutputId = nodeIdMap[xadOutputId];
+            outputIds_.push_back(forgeOutputId);
+            ForgeError err = forge_graph_mark_output(graph_, forgeOutputId);
             if (err != FORGE_SUCCESS)
                 throw std::runtime_error(std::string("Forge mark_output failed: ") + forge_get_last_error());
         }
 
-        // Mark diff inputs
-        for (auto inputId : jitGraph.input_ids)
+        // Mark diff inputs (remap from XAD indices to Forge node IDs)
+        for (auto xadInputId : jitGraph.input_ids)
         {
-            ForgeError err = forge_graph_mark_diff_input(graph_, inputId);
+            uint32_t forgeInputId = nodeIdMap[xadInputId];
+            ForgeError err = forge_graph_mark_diff_input(graph_, forgeInputId);
             if (err != FORGE_SUCCESS)
                 throw std::runtime_error(std::string("Forge mark_diff_input failed: ") + forge_get_last_error());
         }
