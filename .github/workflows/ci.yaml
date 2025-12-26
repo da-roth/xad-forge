@@ -1,0 +1,251 @@
+##############################################################################
+#
+#  xad-forge CI Workflow
+#
+#  Tests all xad-forge backends (Scalar and AVX) with different configurations:
+#  - C++ API vs C API
+#  - Release vs Debug builds
+#  - Linux (primary platform)
+#
+#  This workflow:
+#  1. Builds Forge as a pre-built package
+#  2. Builds xad-jit (XAD with JIT enabled)
+#  3. Builds and tests xad-forge backends
+#
+#  Copyright (C) 2025 The xad-forge Authors
+#
+#  SPDX-License-Identifier: AGPL-3.0-or-later
+#
+##############################################################################
+
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      xad_repo:
+        description: XAD-JIT repository in <owner>/<repo> format
+        required: true
+        default: da-roth/xad-jit
+      xad_branch:
+        description: Branch or tag for XAD-JIT repository
+        required: true
+        default: main
+      forge_repo:
+        description: Forge repository in <owner>/<repo> format
+        required: true
+        default: da-roth/forge
+      forge_branch:
+        description: Branch or tag for Forge repository
+        required: true
+        default: main
+
+env:
+  xad_repo: ${{ github.event.inputs.xad_repo || 'da-roth/xad-jit' }}
+  xad_branch: ${{ github.event.inputs.xad_branch || 'main' }}
+  forge_repo: ${{ github.event.inputs.forge_repo || 'da-roth/forge' }}
+  forge_branch: ${{ github.event.inputs.forge_branch || 'main' }}
+
+jobs:
+  ##############################################################################
+  # Linux builds - Test matrix for backends
+  ##############################################################################
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release, Debug]
+        capi: [off, on]
+        backend: [scalar, avx]
+
+    runs-on: ubuntu-latest
+
+    name: Linux ${{ matrix.build_type }} - ${{ matrix.backend }} (${{ matrix.capi == 'on' && 'C API' || 'C++ API' }})
+
+    steps:
+      - name: Checkout xad-forge
+        uses: actions/checkout@v4
+        with:
+          path: xad-forge
+
+      - name: Checkout XAD-JIT
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.xad_repo }}
+          ref: ${{ env.xad_branch }}
+          path: xad-jit
+
+      - name: Checkout Forge
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.forge_repo }}
+          ref: ${{ env.forge_branch }}
+          path: forge
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2.12
+        with:
+          key: linux-${{ matrix.build_type }}-${{ matrix.capi }}-${{ matrix.backend }}
+          max-size: 500M
+
+      - name: Setup
+        run: |
+          sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build Forge (C++ API)
+        if: matrix.capi == 'off'
+        run: |
+          cd forge
+          cmake -B build -S tools/packaging \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/../install
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Build Forge (C API)
+        if: matrix.capi == 'on'
+        run: |
+          cd forge
+          cmake -B build -S api/c \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/../install
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Build XAD-JIT
+        run: |
+          cd xad-jit
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DXAD_ENABLE_JIT=ON \
+            -DXAD_ENABLE_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=$(pwd)/../install
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Build xad-forge (C++ API)
+        if: matrix.capi == 'off'
+        run: |
+          cd xad-forge
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_PREFIX_PATH=$(pwd)/../install \
+            -DXAD_FORGE_BUILD_TESTS=ON \
+            -DXAD_FORGE_USE_CAPI=OFF
+          cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Build xad-forge (C API)
+        if: matrix.capi == 'on'
+        run: |
+          cd xad-forge
+          cmake -B build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_PREFIX_PATH=$(pwd)/../install \
+            -DXAD_FORGE_BUILD_TESTS=ON \
+            -DXAD_FORGE_USE_CAPI=ON
+          cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Run Scalar Backend Tests
+        if: matrix.backend == 'scalar'
+        run: |
+          cd xad-forge/build
+          ctest --output-on-failure -R scalar
+
+      - name: Run AVX Backend Tests
+        if: matrix.backend == 'avx'
+        run: |
+          cd xad-forge/build
+          ctest --output-on-failure -R avx
+
+  ##############################################################################
+  # Windows builds (optional - for broader compatibility testing)
+  ##############################################################################
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Release]
+        backend: [scalar, avx]
+
+    runs-on: windows-latest
+
+    name: Windows ${{ matrix.build_type }} - ${{ matrix.backend }}
+
+    steps:
+      - name: Checkout xad-forge
+        uses: actions/checkout@v4
+        with:
+          path: xad-forge
+
+      - name: Checkout XAD-JIT
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.xad_repo }}
+          ref: ${{ env.xad_branch }}
+          path: xad-jit
+
+      - name: Checkout Forge
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.forge_repo }}
+          ref: ${{ env.forge_branch }}
+          path: forge
+
+      - name: Build Forge (C++ API)
+        run: |
+          cd forge
+          cmake -B build -S tools/packaging `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_INSTALL_PREFIX="$PWD/../install"
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Build XAD-JIT
+        run: |
+          cd xad-jit
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_CXX_STANDARD=17 `
+            -DXAD_ENABLE_JIT=ON `
+            -DXAD_ENABLE_TESTS=OFF `
+            -DCMAKE_INSTALL_PREFIX="$PWD/../install"
+          cmake --build build --config ${{ matrix.build_type }}
+          cmake --install build --config ${{ matrix.build_type }}
+
+      - name: Build xad-forge
+        run: |
+          cd xad-forge
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_CXX_STANDARD=17 `
+            -DCMAKE_PREFIX_PATH="$PWD/../install" `
+            -DXAD_FORGE_BUILD_TESTS=ON `
+            -DXAD_FORGE_USE_CAPI=OFF
+          cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Run Scalar Backend Tests
+        if: matrix.backend == 'scalar'
+        run: |
+          cd xad-forge/build
+          ctest -C ${{ matrix.build_type }} --output-on-failure -R scalar
+
+      - name: Run AVX Backend Tests
+        if: matrix.backend == 'avx'
+        run: |
+          cd xad-forge/build
+          ctest -C ${{ matrix.build_type }} --output-on-failure -R avx
