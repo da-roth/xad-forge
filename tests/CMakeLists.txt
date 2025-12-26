@@ -34,6 +34,26 @@ include(GoogleTest)
 gtest_discover_tests(xad-forge-scalar-tests)
 
 ##############################################################################
+# C API Backend Tests (explicit ForgeBackendCAPI tests)
+# Only built when XAD_FORGE_USE_CAPI is enabled
+##############################################################################
+
+if(XAD_FORGE_USE_CAPI)
+    add_executable(xad-forge-capi-tests
+        capi_backend_test.cpp
+    )
+
+    target_link_libraries(xad-forge-capi-tests PRIVATE
+        xad-forge
+        GTest::gtest
+    )
+
+    gtest_discover_tests(xad-forge-capi-tests)
+
+    message(STATUS "xad-forge: C API backend tests enabled")
+endif()
+
+##############################################################################
 # AVX Backend Tests (AVX2 packed mode - 4 doubles)
 # Only built on x86/x64 with AVX2 support
 ##############################################################################

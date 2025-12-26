@@ -166,6 +166,12 @@ jobs:
           cd xad-forge/build
           ctest --output-on-failure -R scalar
 
+      - name: Run C API Backend Tests
+        if: matrix.backend == 'scalar' && matrix.capi == 'on'
+        run: |
+          cd xad-forge/build
+          ctest --output-on-failure -R capi
+
       - name: Run AVX Backend Tests
         if: matrix.backend == 'avx'
         run: |
@@ -211,6 +217,7 @@ jobs:
           cd forge
           cmake -B build -S tools/packaging `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
             -DCMAKE_INSTALL_PREFIX="$PWD/../install"
           cmake --build build --config ${{ matrix.build_type }}
           cmake --install build --config ${{ matrix.build_type }}
@@ -221,6 +228,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
             -DXAD_ENABLE_JIT=ON `
             -DXAD_ENABLE_TESTS=OFF `
             -DCMAKE_INSTALL_PREFIX="$PWD/../install"
@@ -233,6 +241,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
             -DCMAKE_PREFIX_PATH="$PWD/../install" `
             -DXAD_FORGE_BUILD_TESTS=ON `
             -DXAD_FORGE_USE_CAPI=OFF
