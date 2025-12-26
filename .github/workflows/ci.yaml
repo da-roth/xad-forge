@@ -215,9 +215,11 @@ jobs:
       - name: Build Forge (C++ API)
         run: |
           cd forge
-          # Patch the CMakeLists.txt to use dynamic runtime instead of static
-          # This is needed because Forge hardcodes static runtime
-          (Get-Content tools/packaging/CMakeLists.txt) -replace 'MultiThreaded\$<\$<CONFIG:Debug>:Debug>', 'MultiThreadedDLL' | Set-Content tools/packaging/CMakeLists.txt
+          # Patch Forge's CMakeLists.txt to not hardcode static runtime
+          # Remove the lines that set CMAKE_MSVC_RUNTIME_LIBRARY to static
+          $content = Get-Content tools/packaging/CMakeLists.txt -Raw
+          $content = $content -replace 'if\(MSVC\)\s+set\(CMAKE_MSVC_RUNTIME_LIBRARY[^)]+\)\s+message\(STATUS "Using static MSVC runtime"\)\s+endif\(\)', '# MSVC runtime patched out for dynamic linking'
+          Set-Content tools/packaging/CMakeLists.txt $content
           cmake -B build -S tools/packaging `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
