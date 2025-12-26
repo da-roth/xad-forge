@@ -180,6 +180,8 @@ jobs:
 
   ##############################################################################
   # Windows builds (optional - for broader compatibility testing)
+  # Note: Forge hardcodes static MSVC runtime (/MT), so we use static runtime
+  # consistently across all projects to avoid LNK2038 runtime library mismatches.
   ##############################################################################
   windows:
     strategy:
@@ -187,6 +189,11 @@ jobs:
       matrix:
         build_type: [Release]
         backend: [scalar, avx]
+        include:
+          - build_type: Release
+            msvc_runtime: MultiThreaded
+          - build_type: Debug
+            msvc_runtime: MultiThreadedDebug
 
     runs-on: windows-latest
 
@@ -215,14 +222,8 @@ jobs:
       - name: Build Forge (C++ API)
         run: |
           cd forge
-          # Patch Forge's CMakeLists.txt to not hardcode static runtime
-          # Remove the lines that set CMAKE_MSVC_RUNTIME_LIBRARY to static
-          $content = Get-Content tools/packaging/CMakeLists.txt -Raw
-          $content = $content -replace 'if\(MSVC\)\s+set\(CMAKE_MSVC_RUNTIME_LIBRARY[^)]+\)\s+message\(STATUS "Using static MSVC runtime"\)\s+endif\(\)', '# MSVC runtime patched out for dynamic linking'
-          Set-Content tools/packaging/CMakeLists.txt $content
           cmake -B build -S tools/packaging `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
             -DCMAKE_INSTALL_PREFIX="$PWD/../install"
           cmake --build build --config ${{ matrix.build_type }}
           cmake --install build --config ${{ matrix.build_type }}
@@ -233,7 +234,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.msvc_runtime }}" `
             -DXAD_ENABLE_JIT=ON `
             -DXAD_ENABLE_TESTS=OFF `
             -DCMAKE_INSTALL_PREFIX="$PWD/../install"
@@ -246,7 +247,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreadedDLL" `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.msvc_runtime }}" `
             -DCMAKE_PREFIX_PATH="$PWD/../install" `
             -DXAD_FORGE_BUILD_TESTS=ON `
             -DXAD_FORGE_USE_CAPI=OFF
