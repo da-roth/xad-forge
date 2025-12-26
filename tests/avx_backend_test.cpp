@@ -90,6 +90,25 @@ protected:
             tape.clearAll();
         }
     }
+
+    // Helper to build JITGraph using JITCompiler
+    template<typename Func>
+    xad::JITGraph buildGraph(Func func, double initialValue, xad::AD& x, xad::AD& y)
+    {
+        // Use JITCompiler to record the graph
+        // We use ScalarBackend just for recording - any backend works
+        xad::JITCompiler<double, 1> jit(
+            std::make_unique<xad::forge::ScalarBackend>());
+
+        x = xad::AD(initialValue);
+        jit.registerInput(x);
+        jit.newRecording();
+        y = func(x);
+        jit.registerOutput(y);
+
+        // Extract the graph before jit goes out of scope
+        return jit.getGraph();
+    }
 };
 
 // =============================================================================
@@ -105,17 +124,19 @@ TEST_F(AVXBackendTest, LinearFunctionBatched)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f1<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    // Build JIT graph
-    xad::Tape<double> tape;
+    // Build JIT graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(inputs[0]);
-    tape.registerInput(x);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.newRecording();
     xad::AD y = f1(x);
-    tape.registerOutput(y);
+    jit.registerOutput(y);
 
     // Compile AVX backend from JIT graph
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
     // Process in batches of 4
     for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
@@ -151,16 +172,18 @@ TEST_F(AVXBackendTest, QuadraticFunctionBatched)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f2<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    // Build graph
-    xad::Tape<double> tape;
+    // Build graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(inputs[0]);
-    tape.registerInput(x);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.newRecording();
     xad::AD y = f2(x);
-    tape.registerOutput(y);
+    jit.registerOutput(y);
 
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
     {
@@ -193,15 +216,18 @@ TEST_F(AVXBackendTest, MathFunctionsBatched)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f3<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    xad::Tape<double> tape;
+    // Build graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(inputs[0]);
-    tape.registerInput(x);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.newRecording();
     xad::AD y = f3(x);
-    tape.registerOutput(y);
+    jit.registerOutput(y);
 
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
     {
@@ -249,15 +275,18 @@ TEST_F(AVXBackendTest, ABoolBranchingBatched)
         }
     }
 
-    xad::Tape<double> tape;
+    // Build graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(inputs[0]);
-    tape.registerInput(x);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.newRecording();
     xad::AD y = f4ABool(x);
-    tape.registerOutput(y);
+    jit.registerOutput(y);
 
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
     {
@@ -291,17 +320,21 @@ TEST_F(AVXBackendTest, ABoolBranchingBatched)
 
 TEST_F(AVXBackendTest, ReEvaluateManyBatches)
 {
-    // Compile once, then run 100 batches (400 evaluations)
-    xad::Tape<double> tape;
+    // Build graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(1.0);
-    tape.registerInput(x);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.newRecording();
     xad::AD y = x * x + 3.0 * x + 2.0;  // f(x) = x^2 + 3x + 2
-    tape.registerOutput(y);
+    jit.registerOutput(y);
 
+    // Compile once
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
+    // Run 100 batches (400 evaluations)
     const int NUM_BATCHES = 100;
     for (int batch = 0; batch < NUM_BATCHES; ++batch)
     {
@@ -367,17 +400,19 @@ TEST_F(AVXBackendTest, TwoInputFunctionBatched)
         }
     }
 
-    // Build graph
-    xad::Tape<double> tape;
+    // Build graph using JITCompiler
+    xad::JITCompiler<double, 1> jit(
+        std::make_unique<xad::forge::ScalarBackend>());
+
     xad::AD x(1.0), y(2.0);
-    tape.registerInput(x);
-    tape.registerInput(y);
-    tape.newRecording();
+    jit.registerInput(x);
+    jit.registerInput(y);
+    jit.newRecording();
     xad::AD z = x * y + x * x;
-    tape.registerOutput(z);
+    jit.registerOutput(z);
 
     xad::forge::AVXBackend avx;
-    avx.compile(tape.getJITGraph());
+    avx.compile(jit.getGraph());
 
     ASSERT_EQ(2u, avx.numInputs());
 
@@ -421,14 +456,16 @@ TEST_F(AVXBackendTest, ResetAndRecompile)
 
     // First function: f(x) = 2x
     {
-        xad::Tape<double> tape;
-        xad::AD x(1.0);
-        tape.registerInput(x);
-        tape.newRecording();
-        xad::AD y = 2.0 * x;
-        tape.registerOutput(y);
+        xad::JITCompiler<double, 1> jit(
+            std::make_unique<xad::forge::ScalarBackend>());
 
-        avx.compile(tape.getJITGraph());
+        xad::AD x(1.0);
+        jit.registerInput(x);
+        jit.newRecording();
+        xad::AD y = 2.0 * x;
+        jit.registerOutput(y);
+
+        avx.compile(jit.getGraph());
 
         double inputLanes[LANES] = {1.0, 2.0, 3.0, 4.0};
         avx.setInputLanes(0, inputLanes);
@@ -450,14 +487,16 @@ TEST_F(AVXBackendTest, ResetAndRecompile)
 
     // Second function: f(x) = x^2
     {
-        xad::Tape<double> tape;
-        xad::AD x(1.0);
-        tape.registerInput(x);
-        tape.newRecording();
-        xad::AD y = x * x;
-        tape.registerOutput(y);
+        xad::JITCompiler<double, 1> jit(
+            std::make_unique<xad::forge::ScalarBackend>());
 
-        avx.compile(tape.getJITGraph());
+        xad::AD x(1.0);
+        jit.registerInput(x);
+        jit.newRecording();
+        xad::AD y = x * x;
+        jit.registerOutput(y);
+
+        avx.compile(jit.getGraph());
 
         double inputLanes[LANES] = {1.0, 2.0, 3.0, 4.0};
         avx.setInputLanes(0, inputLanes);
