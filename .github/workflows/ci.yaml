@@ -182,6 +182,8 @@ jobs:
   # Windows builds (optional - for broader compatibility testing)
   # Note: Forge hardcodes static MSVC runtime (/MT), so we use static runtime
   # consistently across all projects to avoid LNK2038 runtime library mismatches.
+  # XAD-JIT uses XAD_STATIC_MSVC_RUNTIME option (not CMAKE_MSVC_RUNTIME_LIBRARY)
+  # to control both library naming (_mt vs _md suffix) and runtime settings.
   ##############################################################################
   windows:
     strategy:
@@ -189,11 +191,6 @@ jobs:
       matrix:
         build_type: [Release]
         backend: [scalar, avx]
-        include:
-          - build_type: Release
-            msvc_runtime: MultiThreaded
-          - build_type: Debug
-            msvc_runtime: MultiThreadedDebug
 
     runs-on: windows-latest
 
@@ -234,7 +231,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.msvc_runtime }}" `
+            -DXAD_STATIC_MSVC_RUNTIME=ON `
             -DXAD_ENABLE_JIT=ON `
             -DXAD_ENABLE_TESTS=OFF `
             -DCMAKE_INSTALL_PREFIX="$PWD/../install"
@@ -247,7 +244,7 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
             -DCMAKE_CXX_STANDARD=17 `
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.msvc_runtime }}" `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded" `
             -DCMAKE_PREFIX_PATH="$PWD/../install" `
             -DXAD_FORGE_BUILD_TESTS=ON `
             -DXAD_FORGE_USE_CAPI=OFF
