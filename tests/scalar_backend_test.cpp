@@ -307,8 +307,10 @@ TEST_F(ScalarBackendTest, ReEvaluateTwoInputFunction)
     std::vector<double> refOutputs, refDx, refDy;
     {
         xad::Tape<double> tape;
-        for (auto& [xval, yval] : inputs)
+        for (std::size_t i = 0; i < inputs.size(); ++i)
         {
+            double xval = inputs[i].first;
+            double yval = inputs[i].second;
             xad::AD x(xval), y(yval);
             tape.registerInput(x);
             tape.registerInput(y);

@@ -93,24 +93,6 @@ protected:
         }
     }
 
-    // Helper to build JITGraph using JITCompiler
-    template<typename Func>
-    xad::JITGraph buildGraph(Func func, double initialValue, xad::AD& x, xad::AD& y)
-    {
-        // Use JITCompiler to record the graph
-        // We use ScalarBackend just for recording - any backend works
-        xad::JITCompiler<double, 1> jit(
-            std::make_unique<xad::forge::ScalarBackend>());
-
-        x = xad::AD(initialValue);
-        jit.registerInput(x);
-        jit.newRecording();
-        y = func(x);
-        jit.registerOutput(y);
-
-        // Extract the graph before jit goes out of scope
-        return jit.getGraph();
-    }
 };
 
 // =============================================================================
@@ -385,8 +367,10 @@ TEST_F(AVXBackendTest, TwoInputFunctionBatched)
     std::vector<double> refOutputs, refDx, refDy;
     {
         xad::Tape<double> tape;
-        for (auto& [xval, yval] : inputs)
+        for (std::size_t i = 0; i < inputs.size(); ++i)
         {
+            double xval = inputs[i].first;
+            double yval = inputs[i].second;
             xad::AD x(xval), y(yval);
             tape.registerInput(x);
             tape.registerInput(y);

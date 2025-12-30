@@ -179,8 +179,10 @@ TEST_F(CAPIBackendTest, DerivativeTwoInputFunction)
     jit.registerOutput(z);
     jit.compile();
 
-    for (const auto& [xval, yval] : inputs)
+    for (std::size_t i = 0; i < inputs.size(); ++i)
     {
+        double xval = inputs[i].first;
+        double yval = inputs[i].second;
         value(x) = xval;
         value(y) = yval;
         double output;
