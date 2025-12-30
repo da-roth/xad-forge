@@ -158,40 +158,44 @@ endif()
 
 ##############################################################################
 # Installation
+# Skip installation when forge is added as subdirectory (not in an export set)
 ##############################################################################
 
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
+# Only install if we're using a pre-built Forge package (not subdirectory mode)
+if(NOT XAD_FORGE_FORGE_DIR)
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
 
-install(TARGETS xad-forge
-    EXPORT xad-forge-targets
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+    install(TARGETS xad-forge
+        EXPORT xad-forge-targets
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
 
-install(DIRECTORY include/xad-forge
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+    install(DIRECTORY include/xad-forge
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
 
-install(EXPORT xad-forge-targets
-    FILE xad-forge-targets.cmake
-    NAMESPACE XADForge::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
-)
+    install(EXPORT xad-forge-targets
+        FILE xad-forge-targets.cmake
+        NAMESPACE XADForge::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
+    )
 
-configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/xad-forge-config.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
-)
+    configure_package_config_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/xad-forge-config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
+    )
 
-write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config-version.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config-version.cmake
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
 
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config-version.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
-)
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/xad-forge-config-version.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/xad-forge
+    )
+endif()

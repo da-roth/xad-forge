@@ -126,10 +126,32 @@ class ForgeBackendCAPI : public xad::JITBackend
         if (!graph_)
             throw std::runtime_error(std::string("Forge graph creation failed: ") + forge_get_last_error());
 
-        // Build graph from JITGraph
-        // Map from XAD node index to Forge node ID (may differ due to constant handling)
-        std::vector<uint32_t> nodeIdMap(jitGraph.nodeCount());
+        // Pre-populate forge's constPool to match XAD's const_pool indices.
+        // This is critical because:
+        // 1. XAD stores constPool indices in CONSTANT nodes' imm field
+        // 2. Multiple CONSTANT nodes can reference the same constPool index
+        // 3. forge_graph_add_constant() creates NEW constPool entries
+        //
+        // By first adding all constants, we ensure forge's constPool matches XAD's.
+        // Then for CONSTANT nodes, we use forge_graph_add_node() with the correct
+        // imm value (the constPool index) instead of forge_graph_add_constant().
+        std::vector<uint32_t> constNodeIds;
+        constNodeIds.reserve(jitGraph.const_pool.size());
+        for (std::size_t i = 0; i < jitGraph.const_pool.size(); ++i)
+        {
+            uint32_t nodeId = forge_graph_add_constant(graph_, jitGraph.const_pool[i]);
+            if (nodeId == UINT32_MAX)
+                throw std::runtime_error(std::string("Forge add_constant failed: ") + forge_get_last_error());
+            constNodeIds.push_back(nodeId);
+        }
+
+        // Now add the actual graph nodes.
+        // For CONSTANT nodes, we reference the pre-created constant nodes.
+        // For other nodes, we add them normally.
         inputIds_.clear();
+
+        // Map from XAD node index to Forge node ID
+        std::vector<uint32_t> nodeIdMap(jitGraph.nodeCount());
 
         for (std::size_t i = 0; i < jitGraph.nodeCount(); ++i)
         {
@@ -138,7 +160,6 @@ class ForgeBackendCAPI : public xad::JITBackend
 
             if (op == FORGE_OP_INPUT)
             {
-                // Use dedicated input function
                 nodeId = forge_graph_add_input(graph_);
                 if (nodeId == UINT32_MAX)
                     throw std::runtime_error(std::string("Forge add_input failed: ") + forge_get_last_error());
@@ -146,33 +167,28 @@ class ForgeBackendCAPI : public xad::JITBackend
             }
             else if (op == FORGE_OP_CONSTANT)
             {
-                // For constants, XAD stores the constPool index in node.a
-                // We need to look up the actual value and use forge_graph_add_constant
-                uint32_t constIndex = jitGraph.nodes[i].a;
-                if (constIndex >= jitGraph.const_pool.size())
+                // XAD stores the constPool index in node.imm
+                // Reference the pre-created constant node
+                uint32_t constIndex = static_cast<uint32_t>(jitGraph.nodes[i].imm);
+                if (constIndex >= constNodeIds.size())
                     throw std::runtime_error("Invalid constant pool index in JITGraph");
-                double constValue = jitGraph.const_pool[constIndex];
-                nodeId = forge_graph_add_constant(graph_, constValue);
-                if (nodeId == UINT32_MAX)
-                    throw std::runtime_error(std::string("Forge add_constant failed: ") + forge_get_last_error());
+                nodeId = constNodeIds[constIndex];
             }
             else
             {
-                // For all other operations, remap operand indices and use generic add_node
+                // Remap operand indices from XAD to Forge node IDs
                 uint32_t a = jitGraph.nodes[i].a;
                 uint32_t b = jitGraph.nodes[i].b;
                 uint32_t c = jitGraph.nodes[i].c;
 
-                // Remap operand indices from XAD to Forge node IDs
                 if (a < i) a = nodeIdMap[a];
                 if (b < i) b = nodeIdMap[b];
                 if (c < i) c = nodeIdMap[c];
 
                 double imm = jitGraph.nodes[i].imm;
                 int isActive = (jitGraph.nodes[i].flags & xad::JITNodeFlags::IsActive) != 0 ? 1 : 0;
-                int needsGrad = 0;  // Will be set via mark_diff_input
 
-                nodeId = forge_graph_add_node(graph_, op, a, b, c, imm, isActive, needsGrad);
+                nodeId = forge_graph_add_node(graph_, op, a, b, c, imm, isActive, 0);
                 if (nodeId == UINT32_MAX)
                     throw std::runtime_error(std::string("Forge add_node failed: ") + forge_get_last_error());
             }
