@@ -5,9 +5,8 @@
 #  Tests xad-forge with the C API backend across all platforms and compilers
 #  that xad-jit supports with JIT enabled.
 #
-#  Forge C API is built once per platform using the same settings as Forge's
-#  own CI (ubuntu-latest for Linux, windows-2022 with default MSVC for Windows).
-#  This tests the binary compatibility that the C API provides.
+#  Forge C API is built fresh in each job to ensure matching system libraries
+#  (glibc/libstdc++ versions).
 #
 #  Copyright (c) 2025 The xad-forge Authors
 #  SPDX-License-Identifier: Zlib
@@ -22,80 +21,9 @@ on:
 
 jobs:
   ##############################################################################
-  # Build Forge C API (matches Forge's ci-capi.yml settings)
-  ##############################################################################
-  build-forge-linux:
-    name: Build Forge C API (Linux)
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout forge
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/forge
-          path: forge
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
-
-      - name: Build Forge C API
-        run: |
-          cd forge
-          cmake -B build -S api/c -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DFORGE_CAPI_BUILD_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/forge-install
-          cmake --build build
-          cmake --install build
-
-      - name: Upload Forge C API
-        uses: actions/upload-artifact@v4
-        with:
-          name: forge-capi-linux
-          path: forge-install/
-
-  build-forge-windows:
-    name: Build Forge C API (Windows)
-    runs-on: windows-2022
-
-    steps:
-      - name: Checkout forge
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/forge
-          path: forge
-
-      - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
-      - name: Install Ninja
-        run: choco install ninja -y
-
-      - name: Build Forge C API
-        run: |
-          cd forge
-          cmake -B build -S api/c -G Ninja `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DFORGE_CAPI_BUILD_TESTS=OFF `
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/forge-install
-          cmake --build build
-          cmake --install build
-
-      - name: Upload Forge C API
-        uses: actions/upload-artifact@v4
-        with:
-          name: forge-capi-windows
-          path: forge-install/
-
-  ##############################################################################
   # Windows
   ##############################################################################
   windows:
-    needs: build-forge-windows
     strategy:
       fail-fast: false
       matrix:
@@ -131,21 +59,28 @@ jobs:
           repository: da-roth/xad-jit
           path: xad-jit
 
-      - name: Download Forge C API
-        uses: actions/download-artifact@v4
+      - name: Checkout forge
+        uses: actions/checkout@v4
         with:
-          name: forge-capi-windows
-          path: install/
+          repository: da-roth/forge
+          path: forge
 
       - name: Setup
         run: choco install -y ninja
 
-      - name: Debug paths
+      - name: Build Forge C API
         shell: cmd
         run: |
-          echo PWD=%cd%
-          dir install\ 2>nul || echo install\ not found
-          dir install\lib\cmake\ForgeCAPI\ 2>nul || echo ForgeCAPI cmake dir not found
+          cd forge
+          call "%VSVARSALL%" amd64 -vcvars_ver=${{ matrix.toolset }}
+          cmake -B build -S api/c -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
+            -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
+            -DFORGE_CAPI_BUILD_TESTS=OFF ^
+            -DCMAKE_INSTALL_PREFIX="%cd%\..\install"
+          cmake --build build
+          cmake --install build
 
       - name: Build XAD-JIT
         shell: cmd
@@ -189,7 +124,6 @@ jobs:
   # Linux - GCC
   ##############################################################################
   linux-gcc:
-    needs: build-forge-linux
     strategy:
       fail-fast: false
       matrix:
@@ -226,18 +160,23 @@ jobs:
           repository: da-roth/xad-jit
           path: xad-jit
 
-      - name: Download Forge C API
-        uses: actions/download-artifact@v4
+      - name: Checkout forge
+        uses: actions/checkout@v4
         with:
-          name: forge-capi-linux
-          path: install
+          repository: da-roth/forge
+          path: forge
 
-      - name: Debug paths
+      - name: Build Forge C API
         run: |
-          echo "PWD=$(pwd)"
-          ls -la install/ || echo "install/ not found"
-          find install -name "*.cmake" 2>/dev/null || echo "No cmake files found"
-          ls -la install/lib/cmake/ForgeCAPI/ 2>/dev/null || echo "ForgeCAPI cmake dir not found"
+          INSTALL_DIR=$(pwd)/install
+          cd forge
+          cmake -B build -S api/c -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-std=c++17" \
+            -DFORGE_CAPI_BUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
+          cmake --build build
+          cmake --install build
 
       - name: Build XAD-JIT
         run: |
@@ -275,7 +214,6 @@ jobs:
   # Linux - Clang
   ##############################################################################
   linux-clang:
-    needs: build-forge-linux
     strategy:
       fail-fast: false
       matrix:
@@ -303,18 +241,25 @@ jobs:
           repository: da-roth/xad-jit
           path: xad-jit
 
-      - name: Download Forge C API
-        uses: actions/download-artifact@v4
+      - name: Checkout forge
+        uses: actions/checkout@v4
         with:
-          name: forge-capi-linux
-          path: install
+          repository: da-roth/forge
+          path: forge
 
-      - name: Debug paths
+      - name: Build Forge C API
         run: |
-          echo "PWD=$(pwd)"
-          ls -la install/ || echo "install/ not found"
-          find install -name "*.cmake" 2>/dev/null || echo "No cmake files found"
-          ls -la install/lib/cmake/ForgeCAPI/ 2>/dev/null || echo "ForgeCAPI cmake dir not found"
+          INSTALL_DIR=$(pwd)/install
+          cd forge
+          cmake -B build -S api/c -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DFORGE_CAPI_BUILD_TESTS=OFF \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
+          cmake --build build
+          cmake --install build
 
       - name: Build XAD-JIT
         run: |
