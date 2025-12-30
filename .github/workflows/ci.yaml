@@ -181,6 +181,7 @@ jobs:
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
             -DCMAKE_CXX_STANDARD=17 ^
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ^
             -DXAD_ENABLE_JIT=ON ^
             -DXAD_ENABLE_TESTS=OFF ^
             -DCMAKE_INSTALL_PREFIX="%cd%\..\install"
@@ -197,6 +198,7 @@ jobs:
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
             -DCMAKE_CXX_STANDARD=17 ^
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ^
             -DCMAKE_PREFIX_PATH="%cd%\..\install" ^
             -DXAD_FORGE_BUILD_TESTS=ON ^
             -DXAD_FORGE_USE_CAPI=OFF ^
