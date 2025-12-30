@@ -18,6 +18,7 @@ project(xad-forge VERSION 0.1.0 LANGUAGES CXX)
 
 option(XAD_FORGE_USE_CAPI "Use Forge C API instead of C++ API for binary compatibility" OFF)
 option(XAD_FORGE_BUILD_TESTS "Build xad-forge tests" OFF)
+option(XAD_FORGE_BUILD_SAMPLES "Build xad-forge samples" OFF)
 
 ##############################################################################
 # Find dependencies
@@ -123,6 +124,14 @@ else()
 endif()
 
 message(STATUS "xad-forge: Configured with ${XAD_FORGE_USE_CAPI} C API mode, target ${FORGE_TARGET}")
+
+##############################################################################
+# Samples
+##############################################################################
+
+if(XAD_FORGE_BUILD_SAMPLES)
+    add_subdirectory(samples)
+endif()
 
 ##############################################################################
 # Tests
