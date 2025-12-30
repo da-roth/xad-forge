@@ -17,6 +17,7 @@ project(xad-forge VERSION 0.1.0 LANGUAGES CXX)
 option(XAD_FORGE_USE_CAPI "Use Forge C API instead of C++ API for binary compatibility" OFF)
 option(XAD_FORGE_BUILD_TESTS "Build xad-forge tests" OFF)
 option(XAD_FORGE_BUILD_SAMPLES "Build xad-forge samples" OFF)
+set(XAD_FORGE_FORGE_DIR "" CACHE PATH "Path to Forge source directory (for subdirectory build)")
 
 ##############################################################################
 # Find dependencies
@@ -66,7 +67,22 @@ else()
         set(FORGE_TARGET forge)
     endif()
 
-    # Option 2: Try find_package for pre-built Forge
+    # Option 2: If XAD_FORGE_FORGE_DIR is set, add it as a subdirectory
+    if(NOT FORGE_FOUND AND XAD_FORGE_FORGE_DIR)
+        if(EXISTS "${XAD_FORGE_FORGE_DIR}/CMakeLists.txt")
+            message(STATUS "xad-forge: Adding Forge from ${XAD_FORGE_FORGE_DIR}")
+            set(FORGE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+            add_subdirectory("${XAD_FORGE_FORGE_DIR}" "${CMAKE_BINARY_DIR}/forge")
+            if(TARGET forge)
+                set(FORGE_FOUND TRUE)
+                set(FORGE_TARGET forge)
+            endif()
+        else()
+            message(WARNING "xad-forge: XAD_FORGE_FORGE_DIR set but no CMakeLists.txt found at ${XAD_FORGE_FORGE_DIR}")
+        endif()
+    endif()
+
+    # Option 3: Try find_package for pre-built Forge
     if(NOT FORGE_FOUND)
         find_package(Forge CONFIG QUIET)
         if(Forge_FOUND)
