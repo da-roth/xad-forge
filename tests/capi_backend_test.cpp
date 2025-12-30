@@ -10,7 +10,9 @@
  * This test is critical for catching issues like missing needsGradient
  * propagation in the C API layer.
  *
+ * Copyright (c) 2025 The xad-forge Authors
  * https://github.com/da-roth/xad-forge
+ * SPDX-License-Identifier: Zlib
  */
 
 #include <xad-forge/ForgeBackendCAPI.hpp>

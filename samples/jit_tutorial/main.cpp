@@ -10,14 +10,9 @@
  *   - ABool::If for trackable branches that work with JIT
  *   - Compile-once, evaluate-many pattern with ForgeBackend
  *
- *   This file is part of xad-forge, providing Forge JIT compilation
- *   as a backend for XAD automatic differentiation.
- *
+ *   Copyright (c) 2025 The xad-forge Authors
  *   https://github.com/da-roth/xad-forge
- *
- *   Copyright (C) 2025 The xad-forge Authors
- *
- *   SPDX-License-Identifier: AGPL-3.0-or-later
+ *   SPDX-License-Identifier: Zlib
  *
  ******************************************************************************/
 

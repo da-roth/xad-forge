@@ -8,6 +8,9 @@
 #    - AVXBackend for 4-way SIMD evaluation
 #    - Compile-once, evaluate-many pattern
 #
+#  Copyright (c) 2025 The xad-forge Authors
+#  SPDX-License-Identifier: Zlib
+#
 ##############################################################################
 
 add_executable(xad-forge-jit-tutorial main.cpp)

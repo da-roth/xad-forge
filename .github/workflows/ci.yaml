@@ -12,9 +12,8 @@
 #  2. Builds xad-jit (XAD with JIT enabled)
 #  3. Builds and tests xad-forge backends
 #
-#  Copyright (C) 2025 The xad-forge Authors
-#
-#  SPDX-License-Identifier: AGPL-3.0-or-later
+#  Copyright (c) 2025 The xad-forge Authors
+#  SPDX-License-Identifier: Zlib
 #
 ##############################################################################
 

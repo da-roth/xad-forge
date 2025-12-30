@@ -5,7 +5,9 @@
  * - Compile once, evaluate multiple times with different inputs
  * - Tests forward pass and adjoint computation
  *
+ * Copyright (c) 2025 The xad-forge Authors
  * https://github.com/da-roth/xad-forge
+ * SPDX-License-Identifier: Zlib
  */
 
 #include <xad-forge/ForgeBackends.hpp>

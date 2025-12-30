@@ -6,6 +6,9 @@
 #    - xad-forge-scalar-tests: Tests ForgeBackend (ScalarBackend)
 #    - xad-forge-avx-tests: Tests ForgeBackendAVX (AVXBackend)
 #
+#  Copyright (c) 2025 The xad-forge Authors
+#  SPDX-License-Identifier: Zlib
+#
 ##############################################################################
 
 include(FetchContent)

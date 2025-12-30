@@ -178,7 +178,9 @@ When `XAD_FORGE_USE_CAPI=ON`, the backends use Forge's C API instead of the C++ 
 
 ## License
 
-AGPL-3.0-or-later
+xad-forge is licensed under the [zlib license](LICENSE.md).
+
+Note that [XAD](https://github.com/da-roth/xad-jit) is licensed under AGPL-3.0, which may affect your combined work when linking with xad-forge.
 
 ## See Also
 

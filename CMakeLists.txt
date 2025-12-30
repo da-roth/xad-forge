@@ -5,11 +5,9 @@
 #  This library provides JIT compilation backends using Forge for XAD.
 #  It converts xad::JITGraph to forge::Graph and compiles to native code.
 #
+#  Copyright (c) 2025 The xad-forge Authors
 #  https://github.com/da-roth/xad-forge
-#
-#  Copyright (C) 2025 The xad-forge Authors
-#
-#  SPDX-License-Identifier: AGPL-3.0-or-later
+#  SPDX-License-Identifier: Zlib
 #
 ##############################################################################
 
