@@ -2,21 +2,21 @@
 
 Forge JIT backend for [XAD](https://github.com/da-roth/xad-jit) automatic differentiation.
 
-xad-forge provides JIT compilation backends that compile XAD's computation graphs to native x86 machine code using the [Forge](https://github.com/da-roth/forge) JIT compiler. This enables fast re-evaluation of recorded computations — ideal for Monte Carlo simulations, sensitivity analysis, and model calibration.
+xad-forge provides JIT compilation backends that compile XAD's computation graphs to native x86-64 machine code using the [Forge](https://github.com/da-roth/forge) JIT compiler. This enables fast re-evaluation of recorded computations — ideal for Monte Carlo simulations, sensitivity analysis, and model calibration.
 
 ## Features
 
-- **ScalarBackend** — Compiles to native x86 code for single evaluations
-- **AVXBackend** — Compiles to AVX2 SIMD code, evaluating 4 inputs in parallel
+- **ScalarBackend** — Compiles to native x86-64 code using SSE2 scalar instructions
+- **AVXBackend** — Compiles to AVX2 SIMD code, evaluating 4 inputs in parallel using 256-bit YMM registers
 - **C API mode** — Optional binary-compatible interface for cross-compiler usage
 - **Header-only** — Simple integration, just include and link
 
 ## How It Works
 
-xad-forge implements the `xad::JITBackend` interface, translating XAD's `JITGraph` to Forge's `Graph` format:
+xad-forge implements the `xad::JITBackend` interface, acting as a bridge between XAD and Forge. It translates XAD's `JITGraph` to Forge's `Graph` format:
 
 ```
-xad::JITGraph  →  xad-forge  →  forge::Graph  →  Native x86 code
+xad::JITGraph  →  xad-forge  →  forge::Graph  →  Native x86-64 code
    (XAD)          (bridge)       (Forge)          (executable)
 ```
 
@@ -40,7 +40,7 @@ jit.newRecording();
 auto y = x * x + 3.0 * x + 2.0;
 
 jit.registerOutput(y);
-jit.compile();  // Compiles to native x86!
+jit.compile();  // Compiles to native x86-64!
 
 // Re-evaluate with different inputs
 double out;
@@ -57,9 +57,9 @@ for (double input : {1.0, 2.0, 3.0, 4.0, 5.0})
 }
 ```
 
-## AVX Backend — 4-Way SIMD
+## AVXBackend — 4-Way SIMD
 
-For batch evaluation, AVXBackend processes 4 inputs simultaneously:
+For batch evaluation, AVXBackend uses AVX2 instructions to process 4 inputs simultaneously using 256-bit YMM registers (4 packed doubles):
 
 ```cpp
 #include <xad-forge/ForgeBackends.hpp>
@@ -69,7 +69,7 @@ xad::JITCompiler<double, 1> jit(
     std::make_unique<xad::forge::ScalarBackend>());
 // ... register inputs, record computation, register outputs ...
 
-// Compile for AVX
+// Compile for AVX2
 xad::forge::AVXBackend avx;
 avx.compile(jit.getGraph());
 
@@ -82,6 +82,8 @@ double outputAdjoints[4] = {1.0, 1.0, 1.0, 1.0};
 std::vector<std::array<double, 4>> inputGradients(1);
 avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
 ```
+
+This is particularly useful for Monte Carlo simulations where many independent paths can be evaluated in parallel.
 
 ## Branching with JIT
 
@@ -106,7 +108,9 @@ AD piecewise_correct(const AD& x)
 }
 ```
 
-See the [JIT Tutorial](samples/jit_tutorial/) for a complete example demonstrating this.
+With AVXBackend, different SIMD lanes can take different branches — the conditional is evaluated per-lane at runtime.
+
+See the [JIT Tutorial](samples/jit_tutorial/) for a complete example.
 
 ## Building
 
@@ -147,27 +151,30 @@ ctest --test-dir build
 - Compiles to SSE2 scalar instructions
 - Single input/output per evaluation
 - Implements `xad::JITBackend` interface
+- Works with `xad::JITCompiler`
 
 ### AVXBackend
 
-- Compiles to AVX2 packed instructions
+- Compiles to AVX2 packed instructions (256-bit YMM registers)
 - 4 inputs/outputs per evaluation (SIMD lanes)
-- Standalone API (not a JITBackend)
+- Standalone API with lane-based input/output
+- Requires AVX2-capable CPU (Intel Haswell or later, AMD Excavator or later)
 
 ### C API Backends
 
-When `XAD_FORGE_USE_CAPI=ON`, the backends use Forge's C API instead of the C++ API. This provides binary compatibility across different compilers or compiler versions.
+When `XAD_FORGE_USE_CAPI=ON`, the backends use Forge's C API instead of the C++ API. This provides binary compatibility when xad-forge and Forge are compiled with different compilers or compiler versions.
 
 ## Samples
 
-- **[jit_tutorial](samples/jit_tutorial/)** — Branching and graph reuse with ForgeBackend
+| Sample | Description |
+|--------|-------------|
+| [jit_tutorial](samples/jit_tutorial/) | Branching and graph reuse with ScalarBackend and AVXBackend |
 
-## Requirements
+## Dependencies
 
-- C++17 compiler
-- CMake 3.20+
 - [XAD](https://github.com/da-roth/xad-jit) with JIT enabled (`XAD_ENABLE_JIT=ON`)
 - [Forge](https://github.com/da-roth/forge)
+- CMake 3.20+
 
 ## License
 
