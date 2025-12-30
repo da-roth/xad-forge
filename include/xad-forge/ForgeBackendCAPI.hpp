@@ -200,6 +200,13 @@ class ForgeBackendCAPI : public xad::JITBackend
                 throw std::runtime_error(std::string("Forge mark_diff_input failed: ") + forge_get_last_error());
         }
 
+        // Propagate needsGradient flags through the graph
+        {
+            ForgeError err = forge_graph_propagate_gradients(graph_);
+            if (err != FORGE_SUCCESS)
+                throw std::runtime_error(std::string("Forge propagate_gradients failed: ") + forge_get_last_error());
+        }
+
         // Create config
         config_ = useOptimizations_ ? forge_config_create_fast() : forge_config_create_default();
         if (!config_)

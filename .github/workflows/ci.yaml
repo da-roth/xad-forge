@@ -103,6 +103,7 @@ jobs:
         run: |
           cd xad-forge
           call "%VSVARSALL%" amd64 -vcvars_ver=${{ matrix.toolset }}
+          set PATH=%cd%\..\install\bin;%PATH%
           cmake -B build -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
