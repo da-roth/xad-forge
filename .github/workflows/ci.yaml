@@ -2,10 +2,9 @@
 #
 #  xad-forge CI Workflow
 #
-#  Tests xad-forge with both C API and C++ API backends across platforms.
+#  Tests xad-forge with C API backend across platforms.
 #
 #  C API tests: Binary compatibility across compilers (different compilers OK)
-#  C++ API tests: Same compiler for forge and xad-forge (header-only templates)
 #
 #  Forge is built fresh in each job to ensure matching system libraries.
 #
@@ -124,94 +123,6 @@ jobs:
           ctest --output-on-failure
 
   ##############################################################################
-  # Windows - C++ API (same compiler for forge and xad-forge)
-  ##############################################################################
-  windows-cpp:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - toolset: "14.2"
-            compiler: msvc
-            cxx: cl
-            cc: cl
-          - toolset: "14.4"
-            compiler: msvc
-            cxx: cl
-            cc: cl
-          - toolset: "14.4"
-            compiler: clang
-            cxx: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
-            cc: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
-
-    runs-on: windows-2022
-    name: Windows C++ ${{ matrix.compiler }} ${{ matrix.toolset }}
-
-    env:
-      VSVARSALL: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat
-
-    steps:
-      - name: Checkout xad-forge
-        uses: actions/checkout@v4
-        with:
-          path: xad-forge
-
-      - name: Checkout xad-jit
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/xad-jit
-          path: xad-jit
-
-      - name: Checkout forge
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/forge
-          path: forge
-
-      - name: Setup
-        run: choco install -y ninja
-
-      - name: Build XAD-JIT
-        shell: cmd
-        run: |
-          cd xad-jit
-          call "%VSVARSALL%" amd64 -vcvars_ver=${{ matrix.toolset }}
-          cmake -B build -G Ninja ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
-            -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
-            -DCMAKE_CXX_STANDARD=17 ^
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ^
-            -DXAD_ENABLE_JIT=ON ^
-            -DXAD_ENABLE_TESTS=OFF ^
-            -DCMAKE_INSTALL_PREFIX="%cd%\..\install"
-          cmake --build build --config Release
-          cmake --install build --config Release
-
-      - name: Build xad-forge (C++ API with forge as subdirectory)
-        shell: cmd
-        run: |
-          cd xad-forge
-          call "%VSVARSALL%" amd64 -vcvars_ver=${{ matrix.toolset }}
-          cmake -B build -G Ninja ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
-            -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
-            -DCMAKE_CXX_STANDARD=17 ^
-            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ^
-            -DCMAKE_PREFIX_PATH="%cd%\..\install" ^
-            -DXAD_FORGE_BUILD_TESTS=ON ^
-            -DXAD_FORGE_USE_CAPI=OFF ^
-            -DXAD_FORGE_FORGE_DIR="%cd%\..\forge"
-          cmake --build build --config Release
-
-      - name: Run Tests
-        shell: cmd
-        run: |
-          cd xad-forge\build
-          ctest --output-on-failure
-
-  ##############################################################################
   # Linux - GCC - C API
   ##############################################################################
   linux-gcc-capi:
@@ -302,84 +213,6 @@ jobs:
           ctest --output-on-failure
 
   ##############################################################################
-  # Linux - GCC - C++ API (requires C++17 for forge, limited GCC versions)
-  ##############################################################################
-  linux-gcc-cpp:
-    strategy:
-      fail-fast: false
-      matrix:
-        # C++ API requires C++17, so only GCC 8+ (GCC 7 has incomplete C++17)
-        version: ["8", "9", "10", "11", "12", "13", "14"]
-
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/foonathan/gcc:${{ matrix.version }}
-    name: Linux GCC ${{ matrix.version }} C++
-
-    steps:
-      - name: Use debian archive repos
-        if: matrix.version == '8'
-        run: |
-          set -e
-          sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list
-          sed -i 's|http://security.debian.org/debian-security|http://archive.debian.org/debian-security|g' /etc/apt/sources.list
-          sed -i 's|http://deb.debian.org/debian buster-updates|http://archive.debian.org/debian buster-updates|g' /etc/apt/sources.list
-          echo 'Acquire::Check-Valid-Until "false";' | tee /etc/apt/apt.conf.d/99no-check-valid-until
-
-      - name: Setup
-        run: |
-          apt-get update
-          apt-get install -y ninja-build build-essential cmake git
-
-      - name: Checkout xad-forge
-        uses: actions/checkout@v4
-        with:
-          path: xad-forge
-
-      - name: Checkout xad-jit
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/xad-jit
-          path: xad-jit
-
-      - name: Checkout forge
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/forge
-          path: forge
-
-      - name: Build XAD-JIT
-        run: |
-          INSTALL_DIR=$(pwd)/install
-          cd xad-jit
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS="-std=c++17" \
-            -DXAD_ENABLE_JIT=ON \
-            -DXAD_ENABLE_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
-          cmake --build build
-          cmake --install build
-
-      - name: Build xad-forge (C++ API with forge as subdirectory)
-        run: |
-          INSTALL_DIR=$(pwd)/install
-          cd xad-forge
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS="-std=c++17" \
-            -DCMAKE_PREFIX_PATH=$INSTALL_DIR \
-            -DXAD_FORGE_BUILD_TESTS=ON \
-            -DXAD_FORGE_USE_CAPI=OFF \
-            -DXAD_FORGE_FORGE_DIR=$(pwd)/../forge
-          cmake --build build
-
-      - name: Run Tests
-        run: |
-          cd xad-forge/build
-          ctest --output-on-failure
-
-  ##############################################################################
   # Linux - Clang - C API
   ##############################################################################
   linux-clang-capi:
@@ -464,78 +297,6 @@ jobs:
           INSTALL_DIR=$(pwd)/install
           cd xad-forge/build
           export LD_LIBRARY_PATH=$INSTALL_DIR/lib:$LD_LIBRARY_PATH
-          ctest --output-on-failure
-
-  ##############################################################################
-  # Linux - Clang - C++ API
-  ##############################################################################
-  linux-clang-cpp:
-    strategy:
-      fail-fast: false
-      matrix:
-        version: ["11", "12", "13", "14", "15", "16", "17", "18"]
-
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/foonathan/clang:${{ matrix.version }}
-    name: Linux Clang ${{ matrix.version }} C++
-
-    steps:
-      - name: Setup
-        run: |
-          apt-get update
-          apt-get install -y ninja-build build-essential cmake git
-
-      - name: Checkout xad-forge
-        uses: actions/checkout@v4
-        with:
-          path: xad-forge
-
-      - name: Checkout xad-jit
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/xad-jit
-          path: xad-jit
-
-      - name: Checkout forge
-        uses: actions/checkout@v4
-        with:
-          repository: da-roth/forge
-          path: forge
-
-      - name: Build XAD-JIT
-        run: |
-          INSTALL_DIR=$(pwd)/install
-          cd xad-jit
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_STANDARD=17 \
-            -DXAD_ENABLE_JIT=ON \
-            -DXAD_ENABLE_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
-          cmake --build build
-          cmake --install build
-
-      - name: Build xad-forge (C++ API with forge as subdirectory)
-        run: |
-          INSTALL_DIR=$(pwd)/install
-          cd xad-forge
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_STANDARD=17 \
-            -DCMAKE_PREFIX_PATH=$INSTALL_DIR \
-            -DXAD_FORGE_BUILD_TESTS=ON \
-            -DXAD_FORGE_USE_CAPI=OFF \
-            -DXAD_FORGE_FORGE_DIR=$(pwd)/../forge
-          cmake --build build
-
-      - name: Run Tests
-        run: |
-          cd xad-forge/build
           ctest --output-on-failure
 
   ##############################################################################
