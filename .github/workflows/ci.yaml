@@ -140,6 +140,13 @@ jobs:
       - name: Setup
         run: choco install -y ninja
 
+      - name: Debug paths
+        shell: cmd
+        run: |
+          echo PWD=%cd%
+          dir install\ 2>nul || echo install\ not found
+          dir install\lib\cmake\ForgeCAPI\ 2>nul || echo ForgeCAPI cmake dir not found
+
       - name: Build XAD-JIT
         shell: cmd
         run: |
@@ -223,35 +230,45 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: forge-capi-linux
-          path: install/
+          path: install
+
+      - name: Debug paths
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la install/ || echo "install/ not found"
+          find install -name "*.cmake" 2>/dev/null || echo "No cmake files found"
+          ls -la install/lib/cmake/ForgeCAPI/ 2>/dev/null || echo "ForgeCAPI cmake dir not found"
 
       - name: Build XAD-JIT
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-jit
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS="-std=c++11" \
             -DXAD_ENABLE_JIT=ON \
             -DXAD_ENABLE_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
           cmake --build build
           cmake --install build
 
       - name: Build xad-forge
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-forge
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS="-std=c++11" \
-            -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install \
+            -DCMAKE_PREFIX_PATH=$INSTALL_DIR \
             -DXAD_FORGE_BUILD_TESTS=ON \
             -DXAD_FORGE_USE_CAPI=ON
           cmake --build build
 
       - name: Run Tests
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-forge/build
-          export LD_LIBRARY_PATH=${{ github.workspace }}/install/lib:$LD_LIBRARY_PATH
+          export LD_LIBRARY_PATH=$INSTALL_DIR/lib:$LD_LIBRARY_PATH
           ctest --output-on-failure
 
   ##############################################################################
@@ -290,10 +307,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: forge-capi-linux
-          path: install/
+          path: install
+
+      - name: Debug paths
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la install/ || echo "install/ not found"
+          find install -name "*.cmake" 2>/dev/null || echo "No cmake files found"
+          ls -la install/lib/cmake/ForgeCAPI/ 2>/dev/null || echo "ForgeCAPI cmake dir not found"
 
       - name: Build XAD-JIT
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-jit
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -302,27 +327,29 @@ jobs:
             -DCMAKE_CXX_STANDARD=11 \
             -DXAD_ENABLE_JIT=ON \
             -DXAD_ENABLE_TESTS=OFF \
-            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
           cmake --build build
           cmake --install build
 
       - name: Build xad-forge
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-forge
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_STANDARD=11 \
-            -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install \
+            -DCMAKE_PREFIX_PATH=$INSTALL_DIR \
             -DXAD_FORGE_BUILD_TESTS=ON \
             -DXAD_FORGE_USE_CAPI=ON
           cmake --build build
 
       - name: Run Tests
         run: |
+          INSTALL_DIR=$(pwd)/install
           cd xad-forge/build
-          export LD_LIBRARY_PATH=${{ github.workspace }}/install/lib:$LD_LIBRARY_PATH
+          export LD_LIBRARY_PATH=$INSTALL_DIR/lib:$LD_LIBRARY_PATH
           ctest --output-on-failure
 
   ##############################################################################
