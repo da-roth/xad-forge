@@ -30,6 +30,7 @@ jobs:
         toolset: ["14.2", "14.4"]
         compiler: [msvc]
         standard: ["11", "17"]
+        runtime: [dynamic, static]
         include:
           - compiler: msvc
             cxx: cl
@@ -37,16 +38,30 @@ jobs:
           - toolset: "14.4"
             compiler: clang
             standard: "11"
+            runtime: dynamic
+            cxx: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
+            cc: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
+          - toolset: "14.4"
+            compiler: clang
+            standard: "11"
+            runtime: static
             cxx: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
             cc: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
           - toolset: "14.4"
             compiler: clang
             standard: "17"
+            runtime: dynamic
+            cxx: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
+            cc: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
+          - toolset: "14.4"
+            compiler: clang
+            standard: "17"
+            runtime: static
             cxx: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
             cc: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/bin/clang-cl.exe
 
     runs-on: windows-2022
-    name: Windows ${{ matrix.compiler }} ${{ matrix.toolset }} C++${{ matrix.standard }}
+    name: Windows ${{ matrix.compiler }} ${{ matrix.toolset }} C++${{ matrix.standard }} ${{ matrix.runtime }}
 
     env:
       VSVARSALL: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat
@@ -82,6 +97,7 @@ jobs:
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" ^
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" ^
             -DFORGE_CAPI_BUILD_TESTS=OFF ^
+            -DFORGE_CAPI_USE_STATIC_RUNTIME=${{ matrix.runtime == 'static' && 'ON' || 'OFF' }} ^
             -DCMAKE_INSTALL_PREFIX="%cd%\..\install"
           cmake --build build
           cmake --install build
@@ -98,6 +114,7 @@ jobs:
             -DCMAKE_CXX_STANDARD=${{ matrix.standard }} ^
             -DXAD_ENABLE_JIT=ON ^
             -DXAD_ENABLE_TESTS=OFF ^
+            -DXAD_STATIC_MSVC_RUNTIME=${{ matrix.runtime == 'static' && 'ON' || 'OFF' }} ^
             -DCMAKE_INSTALL_PREFIX="%cd%\..\install"
           cmake --build build --config Release
           cmake --install build --config Release
