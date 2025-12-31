@@ -54,11 +54,11 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout xad-jit
+      - name: Checkout XAD
         uses: actions/checkout@v4
         with:
-          repository: da-roth/xad-jit
-          path: xad-jit
+          repository: auto-differentiation/xad
+          path: xad
 
       - name: Checkout forge
         uses: actions/checkout@v4
@@ -83,10 +83,10 @@ jobs:
           cmake --build build
           cmake --install build
 
-      - name: Build XAD-JIT
+      - name: Build XAD
         shell: cmd
         run: |
-          cd xad-jit
+          cd xad
           call "%VSVARSALL%" amd64 -vcvars_ver=${{ matrix.toolset }}
           cmake -B build -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
@@ -156,11 +156,11 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout xad-jit
+      - name: Checkout XAD
         uses: actions/checkout@v4
         with:
-          repository: da-roth/xad-jit
-          path: xad-jit
+          repository: auto-differentiation/xad
+          path: xad
 
       - name: Checkout forge
         uses: actions/checkout@v4
@@ -180,10 +180,10 @@ jobs:
           cmake --build build
           cmake --install build
 
-      - name: Build XAD-JIT
+      - name: Build XAD
         run: |
           INSTALL_DIR=$(pwd)/install
-          cd xad-jit
+          cd xad
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS="-std=c++11" \
@@ -237,11 +237,11 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout xad-jit
+      - name: Checkout XAD
         uses: actions/checkout@v4
         with:
-          repository: da-roth/xad-jit
-          path: xad-jit
+          repository: auto-differentiation/xad
+          path: xad
 
       - name: Checkout forge
         uses: actions/checkout@v4
@@ -263,10 +263,10 @@ jobs:
           cmake --build build
           cmake --install build
 
-      - name: Build XAD-JIT
+      - name: Build XAD
         run: |
           INSTALL_DIR=$(pwd)/install
-          cd xad-jit
+          cd xad
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=clang++ \

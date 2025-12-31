@@ -1,6 +1,6 @@
 # xad-forge
 
-Forge JIT backends for [XAD](https://github.com/da-roth/xad-jit) automatic differentiation.
+Forge JIT backends for [XAD](https://github.com/auto-differentiation/xad) automatic differentiation.
 
 This library implements JIT backends for XAD using [Forge](https://github.com/da-roth/forge) as the code generation engine. When XAD records a computation graph, xad-forge compiles it to native x86-64 machine code for fast re-evaluation.
 
@@ -73,7 +73,7 @@ avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
 ## Building
 
 ```cmake
-add_subdirectory(xad-jit)
+add_subdirectory(xad)
 add_subdirectory(forge)
 add_subdirectory(xad-forge)
 
@@ -82,7 +82,7 @@ target_link_libraries(your_target PRIVATE XADForge::xad-forge)
 
 ## Dependencies
 
-- [XAD](https://github.com/da-roth/xad-jit) with JIT enabled (`XAD_ENABLE_JIT=ON`)
+- [XAD](https://github.com/auto-differentiation/xad) with JIT enabled (`XAD_ENABLE_JIT=ON`)
 - [Forge](https://github.com/da-roth/forge)
 - CMake 3.20+
 
@@ -90,9 +90,9 @@ target_link_libraries(your_target PRIVATE XADForge::xad-forge)
 
 xad-forge is licensed under the [zlib license](LICENSE.md).
 
-[XAD](https://github.com/da-roth/xad-jit) is licensed under AGPL-3.0, which may affect your combined work.
+[XAD](https://github.com/auto-differentiation/xad) is licensed under AGPL-3.0, which may affect your combined work.
 
 ## See Also
 
-- [XAD](https://github.com/da-roth/xad-jit) — Automatic differentiation library
+- [XAD](https://github.com/auto-differentiation/xad) — Automatic differentiation library
 - [Forge](https://github.com/da-roth/forge) — JIT compiler for computation graphs

@@ -1,6 +1,6 @@
 # JIT Tutorial: Branching with Forge Backend
 
-This tutorial extends the [XAD JIT tutorial](https://github.com/da-roth/xad-jit/tree/main/samples/jit_tutorial) to demonstrate using the Forge JIT backend for native code compilation.
+This tutorial extends the [XAD JIT tutorial](https://github.com/auto-differentiation/xad/tree/main/samples/jit_tutorial) to demonstrate using the Forge JIT backend for native code compilation.
 
 ## Overview
 
@@ -186,6 +186,6 @@ cmake --build build
 
 ## See Also
 
-- [XAD JIT Tutorial](https://github.com/da-roth/xad-jit/tree/main/samples/jit_tutorial) — Original tutorial demonstrating Tape vs JIT
+- [XAD JIT Tutorial](https://github.com/auto-differentiation/xad/tree/main/samples/jit_tutorial) — Original tutorial demonstrating Tape vs JIT
 - [Forge](https://github.com/da-roth/forge) — The JIT compiler backend
 - [xad-forge](https://github.com/da-roth/xad-forge) — Bridge between XAD and Forge
