@@ -17,7 +17,19 @@ project(xad-forge VERSION 0.1.0 LANGUAGES CXX)
 option(XAD_FORGE_USE_CAPI "Use Forge C API instead of C++ API for binary compatibility" OFF)
 option(XAD_FORGE_BUILD_TESTS "Build xad-forge tests" OFF)
 option(XAD_FORGE_BUILD_SAMPLES "Build xad-forge samples" OFF)
+option(XAD_FORGE_USE_STATIC_RUNTIME "Use static runtime library (/MT) instead of dynamic (/MD) on MSVC" OFF)
 set(XAD_FORGE_FORGE_DIR "" CACHE PATH "Path to Forge source directory (for subdirectory build)")
+
+# Configure MSVC runtime for xad-forge targets
+if(MSVC)
+    if(XAD_FORGE_USE_STATIC_RUNTIME)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        message(STATUS "xad-forge: Using static MSVC runtime (/MT, /MTd)")
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        message(STATUS "xad-forge: Using dynamic MSVC runtime (/MD, /MDd)")
+    endif()
+endif()
 
 ##############################################################################
 # Find dependencies

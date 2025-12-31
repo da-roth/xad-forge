@@ -13,6 +13,15 @@
 
 include(FetchContent)
 
+# Configure GoogleTest to use matching runtime library
+if(MSVC)
+    if(XAD_FORGE_USE_STATIC_RUNTIME)
+        set(gtest_force_shared_crt OFF CACHE BOOL "" FORCE)
+    else()
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    endif()
+endif()
+
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git

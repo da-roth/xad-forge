@@ -132,7 +132,8 @@ jobs:
             -DCMAKE_CXX_STANDARD=${{ matrix.standard }} ^
             -DCMAKE_PREFIX_PATH="%cd%\..\install" ^
             -DXAD_FORGE_BUILD_TESTS=ON ^
-            -DXAD_FORGE_USE_CAPI=ON
+            -DXAD_FORGE_USE_CAPI=ON ^
+            -DXAD_FORGE_USE_STATIC_RUNTIME=${{ matrix.runtime == 'static' && 'ON' || 'OFF' }}
           cmake --build build --config Release
 
       - name: Run Tests
