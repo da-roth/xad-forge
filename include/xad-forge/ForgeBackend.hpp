@@ -161,6 +161,18 @@ class ForgeBackend : public xad::JITBackend
         if (!buffer_)
             throw std::runtime_error("Forge buffer creation failed");
 
+        // Pre-compute buffer indices for inputs (avoids per-call overhead)
+        inputBufferIndices_.clear();
+        inputBufferIndices_.reserve(inputIds_.size());
+        for (auto id : inputIds_)
+            inputBufferIndices_.push_back(buffer_->getBufferIndex(id));
+
+        // Pre-compute buffer indices for outputs
+        outputBufferIndices_.clear();
+        outputBufferIndices_.reserve(outputIds_.size());
+        for (auto id : outputIds_)
+            outputBufferIndices_.push_back(buffer_->getBufferIndex(id));
+
         // Cache graph size to detect changes
         lastNodeCount_ = graph.nodeCount();
     }
@@ -179,23 +191,15 @@ class ForgeBackend : public xad::JITBackend
         if (numOutputs != outputIds_.size())
             throw std::runtime_error("Output count mismatch");
 
-        // Set inputs
-        double inputLane[1];
-        for (std::size_t i = 0; i < numInputs; ++i) {
-            inputLane[0] = inputs[i];
-            buffer_->setLanes(inputIds_[i], inputLane);
-        }
+        // Set inputs using batched operation (single virtual call)
+        buffer_->setValueLanes(inputBufferIndices_, inputs);
 
         // Execute kernel (Forge always runs forward+backward, but we ignore gradients here)
         buffer_->clearGradients();
         kernel_->execute(*buffer_);
 
-        // Get outputs
-        double outputLane[1];
-        for (std::size_t i = 0; i < numOutputs; ++i) {
-            buffer_->getLanes(outputIds_[i], outputLane);
-            outputs[i] = outputLane[0];
-        }
+        // Get outputs using batched operation (single virtual call)
+        buffer_->getValueLanes(outputBufferIndices_, outputs);
     }
 
     void forwardAndBackward(const xad::JITGraph& graph,
@@ -215,12 +219,8 @@ class ForgeBackend : public xad::JITBackend
         if (numOutputs != outputIds_.size())
             throw std::runtime_error("Output count mismatch");
 
-        // Set inputs
-        double inputLane[1];
-        for (std::size_t i = 0; i < numInputs; ++i) {
-            inputLane[0] = inputs[i];
-            buffer_->setLanes(inputIds_[i], inputLane);
-        }
+        // Set inputs using batched operation (single virtual call)
+        buffer_->setValueLanes(inputBufferIndices_, inputs);
 
         // Clear gradients - Forge will auto-seed output gradients to 1.0
         buffer_->clearGradients();
@@ -228,20 +228,11 @@ class ForgeBackend : public xad::JITBackend
         // Execute kernel (forward + backward in one call)
         kernel_->execute(*buffer_);
 
-        double* gradPtr = buffer_->getGradientsPtr();
+        // Get outputs using batched operation (single virtual call)
+        buffer_->getValueLanes(outputBufferIndices_, outputs);
 
-        // Get outputs
-        double outputLane[1];
-        for (std::size_t i = 0; i < numOutputs; ++i) {
-            buffer_->getLanes(outputIds_[i], outputLane);
-            outputs[i] = outputLane[0];
-        }
-
-        // Get input gradients
-        for (std::size_t i = 0; i < numInputs; ++i) {
-            size_t bufferIdx = buffer_->getBufferIndex(inputIds_[i]);
-            inputAdjoints[i] = gradPtr[bufferIdx];
-        }
+        // Get input gradients using batched operation (single virtual call)
+        buffer_->getGradientLanes(inputBufferIndices_, inputAdjoints);
     }
 
     void reset() override
@@ -251,6 +242,8 @@ class ForgeBackend : public xad::JITBackend
         forgeGraph_ = ::forge::Graph();
         inputIds_.clear();
         outputIds_.clear();
+        inputBufferIndices_.clear();
+        outputBufferIndices_.clear();
         lastNodeCount_ = 0;
     }
 
@@ -288,6 +281,8 @@ class ForgeBackend : public xad::JITBackend
     std::unique_ptr<::forge::INodeValueBuffer> buffer_;
     std::vector<uint32_t> inputIds_;
     std::vector<uint32_t> outputIds_;
+    std::vector<size_t> inputBufferIndices_;   // Pre-computed for batched I/O
+    std::vector<size_t> outputBufferIndices_;  // Pre-computed for batched I/O
     std::size_t lastNodeCount_ = 0;
 };
 
