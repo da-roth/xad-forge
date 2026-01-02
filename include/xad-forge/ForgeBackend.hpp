@@ -194,12 +194,17 @@ class ForgeBackend : public xad::JITBackend
         // Set inputs using batched operation (single virtual call)
         buffer_->setValueLanes(inputBufferIndices_, inputs);
 
-        // Execute kernel (Forge always runs forward+backward, but we ignore gradients here)
+        // Clear gradients - Forge will auto-seed output gradients to 1.0
         buffer_->clearGradients();
+
+        // Execute kernel (Forge always runs forward+backward together)
         kernel_->execute(*buffer_);
 
         // Get outputs using batched operation (single virtual call)
         buffer_->getValueLanes(outputBufferIndices_, outputs);
+
+        // Mark that gradients are ready (computed during execute)
+        gradientsReady_ = true;
     }
 
     void forwardAndBackward(const xad::JITGraph& graph,
@@ -219,19 +224,25 @@ class ForgeBackend : public xad::JITBackend
         if (numOutputs != outputIds_.size())
             throw std::runtime_error("Output count mismatch");
 
-        // Set inputs using batched operation (single virtual call)
+        // If forward() was just called, gradients are already computed - just retrieve them
+        if (gradientsReady_)
+        {
+            // Get outputs using batched operation (single virtual call)
+            buffer_->getValueLanes(outputBufferIndices_, outputs);
+
+            // Get input gradients using batched operation (single virtual call)
+            buffer_->getGradientLanes(inputBufferIndices_, inputAdjoints);
+
+            // Reset flag for next call
+            gradientsReady_ = false;
+            return;
+        }
+
+        // Otherwise, run full forward+backward (standalone forwardAndBackward call)
         buffer_->setValueLanes(inputBufferIndices_, inputs);
-
-        // Clear gradients - Forge will auto-seed output gradients to 1.0
         buffer_->clearGradients();
-
-        // Execute kernel (forward + backward in one call)
         kernel_->execute(*buffer_);
-
-        // Get outputs using batched operation (single virtual call)
         buffer_->getValueLanes(outputBufferIndices_, outputs);
-
-        // Get input gradients using batched operation (single virtual call)
         buffer_->getGradientLanes(inputBufferIndices_, inputAdjoints);
     }
 
@@ -245,6 +256,7 @@ class ForgeBackend : public xad::JITBackend
         inputBufferIndices_.clear();
         outputBufferIndices_.clear();
         lastNodeCount_ = 0;
+        gradientsReady_ = false;
     }
 
     // =========================================================================
@@ -284,6 +296,7 @@ class ForgeBackend : public xad::JITBackend
     std::vector<size_t> inputBufferIndices_;   // Pre-computed for batched I/O
     std::vector<size_t> outputBufferIndices_;  // Pre-computed for batched I/O
     std::size_t lastNodeCount_ = 0;
+    bool gradientsReady_ = false;  // Flag to avoid redundant kernel execution
 };
 
 }  // namespace forge
