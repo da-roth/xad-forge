@@ -2,7 +2,9 @@
 
 Forge JIT backends for [XAD](https://github.com/auto-differentiation/xad) automatic differentiation.
 
-This library implements JIT backends for XAD using [Forge](https://github.com/da-roth/forge) as the code generation engine. When XAD records a computation graph, xad-forge compiles it to native x86-64 machine code for fast re-evaluation.
+This library implements JIT backends for XAD using the [Forge](https://github.com/da-roth/forge) C API as the code generation engine. When XAD records a computation graph, xad-forge compiles it to native x86-64 machine code for fast re-evaluation.
+
+All backends use the Forge C API for binary compatibility across compilers.
 
 ## Usage
 

@@ -2,16 +2,16 @@
 
 //////////////////////////////////////////////////////////////////////////////
 //
-//  ForgeBackends.hpp - Backend type selection based on API mode
+//  ForgeBackends.hpp - Unified backend type aliases
 //
 //  This file is part of xad-forge, providing Forge JIT compilation
 //  as a backend for XAD automatic differentiation.
 //
-//  This header provides unified type aliases that automatically select
-//  the appropriate backend implementation:
+//  This header provides unified type aliases for the Forge backends:
+//    - ScalarBackend: SSE2 scalar backend (1 value at a time)
+//    - AVXBackend: AVX2 packed backend (4 values at a time via SIMD)
 //
-//    XAD_FORGE_USE_CAPI=1: Uses C API backends (binary compatible)
-//    XAD_FORGE_USE_CAPI=0: Uses C++ API backends (requires matching compiler)
+//  All backends use the Forge C API for binary compatibility across compilers.
 //
 //  Usage:
 //    #include <xad-forge/ForgeBackends.hpp>
@@ -39,9 +39,6 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-#ifdef XAD_FORGE_USE_CAPI
-
-// C API mode - binary compatible across compilers
 #include <xad-forge/ForgeBackendCAPI.hpp>
 #include <xad-forge/ForgeBackendAVX_CAPI.hpp>
 
@@ -55,22 +52,3 @@ using AVXBackend = ForgeBackendAVX_CAPI;
 
 }  // namespace forge
 }  // namespace xad
-
-#else
-
-// C++ API mode - requires matching compiler/ABI
-#include <xad-forge/ForgeBackend.hpp>
-#include <xad-forge/ForgeBackendAVX.hpp>
-
-namespace xad
-{
-namespace forge
-{
-
-using ScalarBackend = ForgeBackend;
-using AVXBackend = ForgeBackendAVX;
-
-}  // namespace forge
-}  // namespace xad
-
-#endif
