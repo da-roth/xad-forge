@@ -74,9 +74,17 @@ avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
 
 ## Building
 
+xad-forge requires the Forge C API library (`forge_capi`).
+
 ```cmake
+# Build Forge C API first
+add_subdirectory(forge/api/c)
+
+# Then XAD with JIT enabled
+set(XAD_ENABLE_JIT ON)
 add_subdirectory(xad)
-add_subdirectory(forge)
+
+# Finally xad-forge
 add_subdirectory(xad-forge)
 
 target_link_libraries(your_target PRIVATE XADForge::xad-forge)
@@ -85,7 +93,7 @@ target_link_libraries(your_target PRIVATE XADForge::xad-forge)
 ## Dependencies
 
 - [XAD](https://github.com/auto-differentiation/xad) with JIT enabled (`XAD_ENABLE_JIT=ON`)
-- [Forge](https://github.com/da-roth/forge)
+- [Forge C API](https://github.com/da-roth/forge) (`forge_capi` target)
 - CMake 3.20+
 
 ## License
