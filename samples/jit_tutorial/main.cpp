@@ -16,7 +16,8 @@
  *
  ******************************************************************************/
 
-#include <xad-forge/ForgeBackends.hpp>
+#include <xad-forge/ForgeBackend.hpp>
+#include <xad-forge/ForgeBackendAVX.hpp>
 #include <XAD/XAD.hpp>
 
 #include <array>
@@ -151,36 +152,38 @@ int main()
     {
         using AD = xad::AReal<double, 1>;
 
-        std::cout << "\n3) JIT with ForgeBackend (ScalarBackend) and ABool::If:\n";
+        std::cout << "\n3) JIT with ForgeBackend (scalar) and ABool::If:\n";
 
-        // Create JIT compiler with ForgeBackend instead of default interpreter
-        xad::JITCompiler<double, 1> jit(
-            std::make_unique<xad::forge::ScalarBackend>());
-
+        // Record graph using JITCompiler
+        xad::JITCompiler<double, 1> jit;
         AD x = 1.0;
         jit.registerInput(x);
         jit.newRecording();
         AD y = piecewise_abool_if(x);
         jit.registerOutput(y);
-        jit.compile();  // Compiles to native x86 code via Forge!
+
+        // Compile to native x86 code via Forge
+        xad::forge::ForgeBackend backend;
+        backend.compile(jit.getGraph());
+
+        constexpr int LANES = xad::forge::ForgeBackend::VECTOR_WIDTH;
 
         // Evaluate at x=1
-        double out = 0.0;
-        jit.forward(&out, 1);
-        jit.clearDerivatives();
-        derivative(y) = 1.0;
-        jit.computeAdjoints();
-        std::cout << "   x=1: y=" << out << ", dy/dx=" << derivative(x) << "\n";
-        rows.push_back({"Forge ScalarBackend", 1.0, out, derivative(x), ""});
+        double inputLanes[LANES] = {1.0};
+        backend.setInputLanes(0, inputLanes);
+        double outputAdjoints[LANES] = {1.0};
+        double outputs[LANES];
+        std::vector<std::array<double, LANES>> inputGradients(1);
+        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        std::cout << "   x=1: y=" << outputs[0] << ", dy/dx=" << inputGradients[0][0] << "\n";
+        rows.push_back({"Forge ForgeBackend", 1.0, outputs[0], inputGradients[0][0], ""});
 
         // Evaluate at x=3
-        value(x) = 3.0;
-        jit.forward(&out, 1);
-        jit.clearDerivatives();
-        derivative(y) = 1.0;
-        jit.computeAdjoints();
-        std::cout << "   x=3: y=" << out << ", dy/dx=" << derivative(x) << "\n";
-        rows.push_back({"Forge ScalarBackend", 3.0, out, derivative(x), ""});
+        inputLanes[0] = 3.0;
+        backend.setInputLanes(0, inputLanes);
+        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        std::cout << "   x=3: y=" << outputs[0] << ", dy/dx=" << inputGradients[0][0] << "\n";
+        rows.push_back({"Forge ForgeBackend", 3.0, outputs[0], inputGradients[0][0], ""});
     }
 
     // -------------------------------------------------------------------------
@@ -189,12 +192,10 @@ int main()
     {
         using AD = xad::AReal<double, 1>;
 
-        std::cout << "\n4) AVX Backend - 4 inputs in parallel with ABool::If:\n";
+        std::cout << "\n4) ForgeBackendAVX - 4 inputs in parallel with ABool::If:\n";
 
         // First build the graph using JITCompiler
-        xad::JITCompiler<double, 1> jit(
-            std::make_unique<xad::forge::ScalarBackend>());
-
+        xad::JITCompiler<double, 1> jit;
         AD x = 1.0;
         jit.registerInput(x);
         jit.newRecording();
@@ -202,12 +203,12 @@ int main()
         jit.registerOutput(y);
 
         // Compile AVX backend from the JIT graph
-        xad::forge::AVXBackend avx;
+        xad::forge::ForgeBackendAVX avx;
         avx.compile(jit.getGraph());
 
         // Evaluate 4 different inputs simultaneously
         // x = {0.5, 1.5, 2.5, 3.5} - first two take true branch, last two take false branch
-        constexpr int LANES = xad::forge::AVXBackend::VECTOR_WIDTH;
+        constexpr int LANES = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
         double inputLanes[LANES] = {0.5, 1.5, 2.5, 3.5};
         avx.setInputLanes(0, inputLanes);
 
@@ -225,7 +226,7 @@ int main()
 
         for (int i = 0; i < LANES; ++i)
         {
-            rows.push_back({"Forge AVXBackend", inputLanes[i], outputs[i], inputGradients[0][i], ""});
+            rows.push_back({"Forge ForgeBackendAVX", inputLanes[i], outputs[i], inputGradients[0][i], ""});
         }
     }
 
@@ -253,8 +254,8 @@ int main()
     std::cout << "\nKey points:\n";
     std::cout << "  - Plain C++ if: branch is baked in at record time (incorrect for JIT)\n";
     std::cout << "  - ABool::If: records a conditional node (correct for JIT)\n";
-    std::cout << "  - ScalarBackend: compiles to native x86 code, same correct behavior\n";
-    std::cout << "  - AVXBackend: evaluates 4 inputs in parallel using SIMD\n";
+    std::cout << "  - ForgeBackend: compiles to native x86 code, same correct behavior\n";
+    std::cout << "  - ForgeBackendAVX: evaluates 4 inputs in parallel using SIMD\n";
 
     return 0;
 }
