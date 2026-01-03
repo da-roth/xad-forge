@@ -93,19 +93,6 @@ protected:
         }
     }
 
-    // Helper to record a JIT graph using JITCompiler (for graph creation only)
-    template<typename Func>
-    xad::JITGraph recordGraph(Func func, double initialInput)
-    {
-        // Use a dummy backend for graph recording
-        xad::JITCompiler<double, 1> jit;
-        xad::AD x(initialInput);
-        jit.registerInput(x);
-        jit.newRecording();
-        xad::AD y = func(x);
-        jit.registerOutput(y);
-        return jit.getGraph();
-    }
 };
 
 // =============================================================================
