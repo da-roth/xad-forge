@@ -80,11 +80,13 @@ class ForgeBackendCAPI : public xad::JITBackend
         , inputIds_(std::move(other.inputIds_))
         , outputIds_(std::move(other.outputIds_))
         , lastNodeCount_(other.lastNodeCount_)
+        , gradientsReady_(other.gradientsReady_)
     {
         other.graph_ = nullptr;
         other.config_ = nullptr;
         other.kernel_ = nullptr;
         other.buffer_ = nullptr;
+        other.gradientsReady_ = false;
     }
 
     ForgeBackendCAPI& operator=(ForgeBackendCAPI&& other) noexcept
@@ -100,10 +102,12 @@ class ForgeBackendCAPI : public xad::JITBackend
             inputIds_ = std::move(other.inputIds_);
             outputIds_ = std::move(other.outputIds_);
             lastNodeCount_ = other.lastNodeCount_;
+            gradientsReady_ = other.gradientsReady_;
             other.graph_ = nullptr;
             other.config_ = nullptr;
             other.kernel_ = nullptr;
             other.buffer_ = nullptr;
+            other.gradientsReady_ = false;
         }
         return *this;
     }
@@ -264,7 +268,7 @@ class ForgeBackendCAPI : public xad::JITBackend
             forge_buffer_set_value(buffer_, inputIds_[i], inputs[i]);
         }
 
-        // Clear gradients and execute
+        // Clear gradients and execute (Forge always runs forward+backward together)
         forge_buffer_clear_gradients(buffer_);
         ForgeError err = forge_execute(kernel_, buffer_);
         if (err != FORGE_SUCCESS)
@@ -275,6 +279,9 @@ class ForgeBackendCAPI : public xad::JITBackend
         {
             forge_buffer_get_value(buffer_, outputIds_[i], &outputs[i]);
         }
+
+        // Mark that gradients are ready (computed during execute)
+        gradientsReady_ = true;
     }
 
     void forwardAndBackward(const xad::JITGraph& graph,
@@ -294,6 +301,27 @@ class ForgeBackendCAPI : public xad::JITBackend
         if (numOutputs != outputIds_.size())
             throw std::runtime_error("Output count mismatch");
 
+        // If forward() was just called, gradients are already computed - just retrieve them
+        if (gradientsReady_)
+        {
+            // Get outputs
+            for (std::size_t i = 0; i < numOutputs; ++i)
+            {
+                forge_buffer_get_value(buffer_, outputIds_[i], &outputs[i]);
+            }
+
+            // Get input gradients
+            for (std::size_t i = 0; i < numInputs; ++i)
+            {
+                forge_buffer_get_gradient(buffer_, inputIds_[i], &inputAdjoints[i]);
+            }
+
+            // Reset flag for next call
+            gradientsReady_ = false;
+            return;
+        }
+
+        // Otherwise, run full forward+backward (standalone forwardAndBackward call)
         // Set inputs
         for (std::size_t i = 0; i < numInputs; ++i)
         {
@@ -325,6 +353,7 @@ class ForgeBackendCAPI : public xad::JITBackend
         inputIds_.clear();
         outputIds_.clear();
         lastNodeCount_ = 0;
+        gradientsReady_ = false;
     }
 
   private:
@@ -344,6 +373,7 @@ class ForgeBackendCAPI : public xad::JITBackend
     std::vector<uint32_t> inputIds_;
     std::vector<uint32_t> outputIds_;
     std::size_t lastNodeCount_ = 0;
+    bool gradientsReady_ = false;  // Flag to avoid redundant kernel execution
 };
 
 }  // namespace forge
