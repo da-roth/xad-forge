@@ -107,10 +107,17 @@ TEST_F(ScalarBackendTest, ReEvaluateLinearFunction)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f1<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    // Record graph and compile with ForgeBackend
-    auto graph = recordGraph(f1<xad::AD>, inputs[0]);
+    // Record graph using JITCompiler
+    xad::JITCompiler<double, 1> jit;
+    xad::AD x(inputs[0]);
+    jit.registerInput(x);
+    jit.newRecording();
+    xad::AD y = f1(x);
+    jit.registerOutput(y);
+
+    // Compile with ForgeBackend
     xad::forge::ForgeBackend backend;
-    backend.compile(graph);
+    backend.compile(jit.getGraph());
 
     // Re-evaluate for each input using lane-based API
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -137,9 +144,16 @@ TEST_F(ScalarBackendTest, ReEvaluateQuadraticFunction)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f2<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    auto graph = recordGraph(f2<xad::AD>, inputs[0]);
+    // Record graph using JITCompiler
+    xad::JITCompiler<double, 1> jit;
+    xad::AD x(inputs[0]);
+    jit.registerInput(x);
+    jit.newRecording();
+    xad::AD y = f2(x);
+    jit.registerOutput(y);
+
     xad::forge::ForgeBackend backend;
-    backend.compile(graph);
+    backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
@@ -166,9 +180,16 @@ TEST_F(ScalarBackendTest, ReEvaluateMathFunctions)
     std::vector<double> refOutputs, refDerivatives;
     computeReference(f3<xad::AD>, inputs, refOutputs, refDerivatives);
 
-    auto graph = recordGraph(f3<xad::AD>, inputs[0]);
+    // Record graph using JITCompiler
+    xad::JITCompiler<double, 1> jit;
+    xad::AD x(inputs[0]);
+    jit.registerInput(x);
+    jit.newRecording();
+    xad::AD y = f3(x);
+    jit.registerOutput(y);
+
     xad::forge::ForgeBackend backend;
-    backend.compile(graph);
+    backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
