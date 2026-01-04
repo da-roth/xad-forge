@@ -3,7 +3,7 @@
  *
  * Tests the ForgeBackendAVX with re-evaluation pattern:
  * - Compile once, evaluate multiple times with different inputs
- * - Tests 4-path SIMD batching with AVX2
+ * - Tests parallel evaluation with AVX2 (4 evaluations per call)
  * - Tests forward pass and adjoint computation
  *
  * Copyright (c) 2025 The xad-forge Authors
@@ -16,7 +16,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <vector>
-#include <array>
 #include <memory>
 
 namespace {
@@ -67,7 +66,8 @@ double f4ABool_double(double x)
 
 class AVXBackendTest : public ::testing::Test {
 protected:
-    static constexpr int LANES = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
+    /// Number of parallel evaluations per call (4 for AVX2)
+    static constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
 
     void SetUp() override {}
     void TearDown() override {}
@@ -96,7 +96,7 @@ protected:
 };
 
 // =============================================================================
-// Basic AVX backend tests with 4-path batching
+// Basic AVX backend tests with parallel evaluation (4 per call)
 // =============================================================================
 
 TEST_F(AVXBackendTest, LinearFunctionBatched)
@@ -121,27 +121,26 @@ TEST_F(AVXBackendTest, LinearFunctionBatched)
     avx.compile(jit.getGraph());
 
     // Process in batches of 4
-    for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
+    for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
     {
-        // Set 4 input lanes
-        double inputLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
-            inputLanes[lane] = inputs[batch + lane];
-        avx.setInputLanes(0, inputLanes);
+        // Set 4 input values (one per parallel evaluation)
+        double inputBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
+            inputBatch[i] = inputs[batch + i];
+        avx.setInput(0, inputBatch);
 
         // Execute forward + backward
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        // Verify all 4 lanes
-        for (int lane = 0; lane < LANES; ++lane)
+        // Verify all 4 results
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            std::size_t idx = batch + lane;
-            EXPECT_NEAR(refOutputs[idx], outputs[lane], 1e-10)
+            std::size_t idx = batch + i;
+            EXPECT_NEAR(refOutputs[idx], outputs[i], 1e-10)
                 << "Output mismatch at index " << idx;
-            EXPECT_NEAR(refDerivatives[idx], inputGradients[0][lane], 1e-10)
+            EXPECT_NEAR(refDerivatives[idx], inputGradients[i], 1e-10)
                 << "Gradient mismatch at index " << idx;
         }
     }
@@ -165,24 +164,23 @@ TEST_F(AVXBackendTest, QuadraticFunctionBatched)
     xad::forge::ForgeBackendAVX avx;
     avx.compile(jit.getGraph());
 
-    for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
+    for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
     {
-        double inputLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
-            inputLanes[lane] = inputs[batch + lane];
-        avx.setInputLanes(0, inputLanes);
+        double inputBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
+            inputBatch[i] = inputs[batch + i];
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            std::size_t idx = batch + lane;
-            EXPECT_NEAR(refOutputs[idx], outputs[lane], 1e-10)
+            std::size_t idx = batch + i;
+            EXPECT_NEAR(refOutputs[idx], outputs[i], 1e-10)
                 << "Output mismatch at index " << idx;
-            EXPECT_NEAR(refDerivatives[idx], inputGradients[0][lane], 1e-10)
+            EXPECT_NEAR(refDerivatives[idx], inputGradients[i], 1e-10)
                 << "Gradient mismatch at index " << idx;
         }
     }
@@ -207,24 +205,23 @@ TEST_F(AVXBackendTest, MathFunctionsBatched)
     xad::forge::ForgeBackendAVX avx;
     avx.compile(jit.getGraph());
 
-    for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
+    for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
     {
-        double inputLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
-            inputLanes[lane] = inputs[batch + lane];
-        avx.setInputLanes(0, inputLanes);
+        double inputBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
+            inputBatch[i] = inputs[batch + i];
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            std::size_t idx = batch + lane;
-            EXPECT_NEAR(refOutputs[idx], outputs[lane], 1e-10)
+            std::size_t idx = batch + i;
+            EXPECT_NEAR(refOutputs[idx], outputs[i], 1e-10)
                 << "Output mismatch at index " << idx;
-            EXPECT_NEAR(refDerivatives[idx], inputGradients[0][lane], 1e-10)
+            EXPECT_NEAR(refDerivatives[idx], inputGradients[i], 1e-10)
                 << "Gradient mismatch at index " << idx;
         }
     }
@@ -264,27 +261,26 @@ TEST_F(AVXBackendTest, ABoolBranchingBatched)
     xad::forge::ForgeBackendAVX avx;
     avx.compile(jit.getGraph());
 
-    for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
+    for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
     {
-        double inputLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
-            inputLanes[lane] = inputs[batch + lane];
-        avx.setInputLanes(0, inputLanes);
+        double inputBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
+            inputBatch[i] = inputs[batch + i];
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            std::size_t idx = batch + lane;
+            std::size_t idx = batch + i;
             double expected = f4ABool_double(inputs[idx]);
-            EXPECT_NEAR(expected, outputs[lane], 1e-10)
+            EXPECT_NEAR(expected, outputs[i], 1e-10)
                 << "Output mismatch at index " << idx;
-            EXPECT_NEAR(refOutputs[idx], outputs[lane], 1e-10)
+            EXPECT_NEAR(refOutputs[idx], outputs[i], 1e-10)
                 << "Output vs tape mismatch at index " << idx;
-            EXPECT_NEAR(refDerivatives[idx], inputGradients[0][lane], 1e-10)
+            EXPECT_NEAR(refDerivatives[idx], inputGradients[i], 1e-10)
                 << "Gradient mismatch at index " << idx;
         }
     }
@@ -313,27 +309,26 @@ TEST_F(AVXBackendTest, ReEvaluateManyBatches)
     for (int batch = 0; batch < NUM_BATCHES; ++batch)
     {
         // Generate 4 different inputs per batch
-        double inputLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
+        double inputBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            inputLanes[lane] = static_cast<double>(batch * LANES + lane) / 50.0 - 4.0;
+            inputBatch[i] = static_cast<double>(batch * BATCH_SIZE + lane) / 50.0 - 4.0;
         }
-        avx.setInputLanes(0, inputLanes);
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        // Verify each lane
-        for (int lane = 0; lane < LANES; ++lane)
+        // Verify each result
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            double xval = inputLanes[lane];
+            double xval = inputBatch[i];
             double expected = xval * xval + 3.0 * xval + 2.0;
             double expectedDeriv = 2.0 * xval + 3.0;
 
-            EXPECT_NEAR(expected, outputs[lane], 1e-10);
-            EXPECT_NEAR(expectedDeriv, inputGradients[0][lane], 1e-10);
+            EXPECT_NEAR(expected, outputs[i], 1e-10);
+            EXPECT_NEAR(expectedDeriv, inputGradients[i], 1e-10);
         }
     }
 }
@@ -390,31 +385,30 @@ TEST_F(AVXBackendTest, TwoInputFunctionBatched)
 
     ASSERT_EQ(2u, avx.numInputs());
 
-    for (std::size_t batch = 0; batch < inputs.size(); batch += LANES)
+    for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
     {
-        // Set x lanes
-        double xLanes[LANES], yLanes[LANES];
-        for (int lane = 0; lane < LANES; ++lane)
+        // Set x and y values
+        double xBatch[BATCH_SIZE], yBatch[BATCH_SIZE];
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            xLanes[lane] = inputs[batch + lane].first;
-            yLanes[lane] = inputs[batch + lane].second;
+            xBatch[i] = inputs[batch + i].first;
+            yBatch[i] = inputs[batch + i].second;
         }
-        avx.setInputLanes(0, xLanes);
-        avx.setInputLanes(1, yLanes);
+        avx.setInput(0, xBatch);
+        avx.setInput(1, yBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(2);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[2 * BATCH_SIZE];  // 2 inputs x 4 evaluations
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            std::size_t idx = batch + lane;
-            EXPECT_NEAR(refOutputs[idx], outputs[lane], 1e-10)
+            std::size_t idx = batch + i;
+            EXPECT_NEAR(refOutputs[idx], outputs[i], 1e-10)
                 << "Output mismatch at index " << idx;
-            EXPECT_NEAR(refDx[idx], inputGradients[0][lane], 1e-10)
+            EXPECT_NEAR(refDx[idx], inputGradients[i], 1e-10)
                 << "dx mismatch at index " << idx;
-            EXPECT_NEAR(refDy[idx], inputGradients[1][lane], 1e-10)
+            EXPECT_NEAR(refDy[idx], inputGradients[BATCH_SIZE + i], 1e-10)
                 << "dy mismatch at index " << idx;
         }
     }
@@ -440,18 +434,17 @@ TEST_F(AVXBackendTest, ResetAndRecompile)
 
         avx.compile(jit.getGraph());
 
-        double inputLanes[LANES] = {1.0, 2.0, 3.0, 4.0};
-        avx.setInputLanes(0, inputLanes);
+        double inputBatch[BATCH_SIZE] = {1.0, 2.0, 3.0, 4.0};
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            EXPECT_NEAR(2.0 * inputLanes[lane], outputs[lane], 1e-10);
-            EXPECT_NEAR(2.0, inputGradients[0][lane], 1e-10);
+            EXPECT_NEAR(2.0 * inputBatch[i], outputs[i], 1e-10);
+            EXPECT_NEAR(2.0, inputGradients[i], 1e-10);
         }
     }
 
@@ -469,18 +462,17 @@ TEST_F(AVXBackendTest, ResetAndRecompile)
 
         avx.compile(jit.getGraph());
 
-        double inputLanes[LANES] = {1.0, 2.0, 3.0, 4.0};
-        avx.setInputLanes(0, inputLanes);
+        double inputBatch[BATCH_SIZE] = {1.0, 2.0, 3.0, 4.0};
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
-        for (int lane = 0; lane < LANES; ++lane)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            EXPECT_NEAR(inputLanes[lane] * inputLanes[lane], outputs[lane], 1e-10);
-            EXPECT_NEAR(2.0 * inputLanes[lane], inputGradients[0][lane], 1e-10);
+            EXPECT_NEAR(inputBatch[i] * inputBatch[i], outputs[i], 1e-10);
+            EXPECT_NEAR(2.0 * inputBatch[i], inputGradients[i], 1e-10);
         }
     }
 }

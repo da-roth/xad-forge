@@ -7,8 +7,10 @@
 //  This file is part of xad-forge, providing Forge JIT compilation
 //  as a backend for XAD automatic differentiation.
 //
-//  This backend processes 4 Monte Carlo paths per kernel execution using
-//  AVX2 SIMD instructions (256-bit YMM registers = 4 doubles).
+//  This backend supports 4 parallel evaluations per kernel execution using
+//  AVX2 SIMD instructions (256-bit YMM registers = 4 doubles). This is useful
+//  for scenarios like Monte Carlo simulations where multiple paths can be
+//  evaluated simultaneously.
 //
 //  Uses the stable C API for binary compatibility across compilers.
 //
@@ -33,18 +35,18 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
+#include <XAD/JITBackendInterface.hpp>
 #include <XAD/JITGraph.hpp>
 
 // Forge C API - stable ABI
 #include <forge_c_api.h>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <stdexcept>
-#include <vector>
-#include <string>
 #include <cstring>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace xad
 {
@@ -52,27 +54,27 @@ namespace forge
 {
 
 /**
- * AVX2 Backend using Forge C API - standalone backend for 4-path SIMD execution.
+ * AVX2 Backend using Forge C API - implements xad::JITBackend interface.
  *
  * Uses the stable C API for binary compatibility with precompiled Forge packages.
+ * Supports 4 parallel evaluations per kernel execution using AVX2 SIMD instructions.
  *
- * Usage pattern:
- *   ForgeBackendAVX avxBackend;
- *   avxBackend.compile(jitGraph);
+ * Usage pattern (via JITCompiler):
+ *   xad::JITCompiler<double> jit;
+ *   // ... record graph ...
+ *   jit.setBackend(std::make_unique<xad::forge::ForgeBackendAVX>());
+ *   jit.compile();
  *
- *   for (pathBatch = 0; pathBatch < nPaths; pathBatch += 4) {
- *       for (size_t i = 0; i < numInputs; ++i)
- *           avxBackend.setInputLanes(i, &pathInputs[pathBatch][i]);
- *
- *       double outputs[4], outputAdjoints[4] = {1.0, 1.0, 1.0, 1.0};
- *       std::vector<std::array<double, 4>> inputGradients(numInputs);
- *       avxBackend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
- *   }
+ *   double inputs[4] = {1.0, 2.0, 3.0, 4.0};  // 4 parallel evaluations
+ *   jit.setInput(0, inputs);
+ *   double outputs[4], gradients[4];
+ *   jit.forwardAndBackward(outputs, gradients);
  */
-class ForgeBackendAVX
+class ForgeBackendAVX : public xad::JITBackend
 {
   public:
-    static constexpr int VECTOR_WIDTH = 4;  // AVX2 processes 4 doubles
+    /// Number of parallel evaluations (4 for AVX2 backend)
+    static constexpr int VECTOR_WIDTH = 4;
 
     explicit ForgeBackendAVX(bool useGraphOptimizations = false)
         : useOptimizations_(useGraphOptimizations)
@@ -83,7 +85,7 @@ class ForgeBackendAVX
     {
     }
 
-    ~ForgeBackendAVX()
+    ~ForgeBackendAVX() override
     {
         cleanup();
     }
@@ -127,10 +129,14 @@ class ForgeBackendAVX
     ForgeBackendAVX(const ForgeBackendAVX&) = delete;
     ForgeBackendAVX& operator=(const ForgeBackendAVX&) = delete;
 
+    //=========================================================================
+    // JITBackend interface implementation
+    //=========================================================================
+
     /**
      * Compile an xad::JITGraph with AVX2 instruction set.
      */
-    void compile(const xad::JITGraph& jitGraph)
+    void compile(const xad::JITGraph& jitGraph) override
     {
         cleanup();
 
@@ -253,14 +259,21 @@ class ForgeBackendAVX
             throw std::runtime_error(std::string("Forge AVX2 buffer creation failed: ") + forge_get_last_error());
     }
 
-    // =========================================================================
-    // Lane-based API for 4-path batching
-    // =========================================================================
+    void reset() override
+    {
+        cleanup();
+        inputIds_.clear();
+        outputIds_.clear();
+    }
+
+    std::size_t vectorWidth() const override { return VECTOR_WIDTH; }
+    std::size_t numInputs() const override { return inputIds_.size(); }
+    std::size_t numOutputs() const override { return outputIds_.size(); }
 
     /**
-     * Set 4 values for an input (one per SIMD lane = one per path)
+     * Set 4 values for an input (one per parallel evaluation).
      */
-    void setInputLanes(std::size_t inputIndex, const double* values)
+    void setInput(std::size_t inputIndex, const double* values) override
     {
         if (inputIndex >= inputIds_.size())
             throw std::runtime_error("Input index out of range");
@@ -268,28 +281,33 @@ class ForgeBackendAVX
     }
 
     /**
-     * Get 4 output values (one per SIMD lane = one per path)
+     * Execute forward pass only.
      */
-    void getOutputLanes(std::size_t outputIndex, double* output) const
-    {
-        if (outputIndex >= outputIds_.size())
-            throw std::runtime_error("Output index out of range");
-        forge_buffer_get_lanes(buffer_, outputIds_[outputIndex], output);
-    }
-
-    /**
-     * Execute forward + backward in one call
-     */
-    void forwardAndBackward(const double* outputAdjoints, double* outputs,
-                           std::vector<std::array<double, VECTOR_WIDTH>>& inputGradients)
+    void forward(double* outputs) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
 
-        if (inputGradients.size() != inputIds_.size())
-            throw std::runtime_error("Input gradients array size mismatch");
+        // Clear gradients and execute (Forge always does forward+backward)
+        forge_buffer_clear_gradients(buffer_);
+        ForgeError err = forge_execute(kernel_, buffer_);
+        if (err != FORGE_SUCCESS)
+            throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
-        (void)outputAdjoints;  // Forge auto-seeds to 1.0
+        // Get outputs
+        for (std::size_t i = 0; i < outputIds_.size(); ++i)
+        {
+            forge_buffer_get_lanes(buffer_, outputIds_[i], outputs + i * VECTOR_WIDTH);
+        }
+    }
+
+    /**
+     * Execute forward + backward in one call.
+     */
+    void forwardAndBackward(double* outputs, double* inputGradients) override
+    {
+        if (!kernel_ || !buffer_)
+            throw std::runtime_error("Backend not compiled");
 
         // Clear gradients and execute
         forge_buffer_clear_gradients(buffer_);
@@ -297,22 +315,22 @@ class ForgeBackendAVX
         if (err != FORGE_SUCCESS)
             throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
-        // Get outputs (first output only for now)
-        forge_buffer_get_lanes(buffer_, outputIds_[0], outputs);
+        // Get outputs
+        for (std::size_t i = 0; i < outputIds_.size(); ++i)
+        {
+            forge_buffer_get_lanes(buffer_, outputIds_[i], outputs + i * VECTOR_WIDTH);
+        }
 
         // Get input gradients
         for (std::size_t i = 0; i < inputIds_.size(); ++i)
         {
-            forge_buffer_get_gradient_lanes(buffer_, &inputIds_[i], 1, inputGradients[i].data());
+            forge_buffer_get_gradient_lanes(buffer_, &inputIds_[i], 1, inputGradients + i * VECTOR_WIDTH);
         }
     }
 
     // =========================================================================
-    // Accessors
+    // Additional Accessors
     // =========================================================================
-
-    std::size_t numInputs() const { return inputIds_.size(); }
-    std::size_t numOutputs() const { return outputIds_.size(); }
 
     const std::vector<uint32_t>& inputIds() const { return inputIds_; }
     const std::vector<uint32_t>& outputIds() const { return outputIds_; }
@@ -335,13 +353,6 @@ class ForgeBackendAVX
      */
     ForgeBackendAVX* buffer() { return this; }
     const ForgeBackendAVX* buffer() const { return this; }
-
-    void reset()
-    {
-        cleanup();
-        inputIds_.clear();
-        outputIds_.clear();
-    }
 
   private:
     void cleanup()

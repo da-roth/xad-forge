@@ -7,8 +7,9 @@
 //  This file is part of xad-forge, providing Forge JIT compilation
 //  as a backend for XAD automatic differentiation.
 //
-//  This backend processes 1 value per kernel execution using SSE2 scalar
-//  instructions.
+//  This backend processes one evaluation per kernel execution using SSE2
+//  scalar instructions. For backends that support multiple parallel
+//  evaluations per execution (e.g., ForgeBackendAVX), see ForgeBackendAVX.hpp.
 //
 //  Uses the stable C API for binary compatibility across compilers.
 //
@@ -33,14 +34,15 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
+#include <XAD/JITBackendInterface.hpp>
 #include <XAD/JITGraph.hpp>
 
 // Forge C API - stable ABI
 #include <forge_c_api.h>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -51,28 +53,23 @@ namespace forge
 {
 
 /**
- * Scalar Backend using Forge C API - standalone backend for single-value execution.
+ * Scalar Backend using Forge C API - implements xad::JITBackend interface.
  *
  * Uses the stable C API for binary compatibility with precompiled Forge packages.
+ * Processes one evaluation per kernel execution using SSE2 scalar instructions.
  *
- * Usage pattern:
- *   ForgeBackend backend;
- *   backend.compile(jitGraph);
- *
- *   for (path = 0; path < nPaths; ++path) {
- *       for (size_t i = 0; i < numInputs; ++i)
- *           backend.setInputLanes(i, &pathInputs[path][i]);
- *
- *       double outputs[1], outputAdjoints[1] = {1.0};
- *       std::vector<std::array<double, 1>> inputGradients(numInputs);
- *       backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
- *   }
+ * Usage pattern (via JITCompiler):
+ *   xad::JITCompiler<double> jit;
+ *   // ... record graph ...
+ *   jit.setBackend(std::make_unique<xad::forge::ForgeBackend>());
+ *   jit.compile();
+ *   jit.setInput(0, &inputValue);
+ *   double output, gradient;
+ *   jit.forwardAndBackward(&output, &gradient);
  */
-class ForgeBackend
+class ForgeBackend : public xad::JITBackend
 {
   public:
-    static constexpr int VECTOR_WIDTH = 1;  // Scalar processes 1 double
-
     explicit ForgeBackend(bool useGraphOptimizations = false)
         : useOptimizations_(useGraphOptimizations)
         , graph_(nullptr)
@@ -82,7 +79,7 @@ class ForgeBackend
     {
     }
 
-    ~ForgeBackend()
+    ~ForgeBackend() override
     {
         cleanup();
     }
@@ -126,10 +123,14 @@ class ForgeBackend
     ForgeBackend(const ForgeBackend&) = delete;
     ForgeBackend& operator=(const ForgeBackend&) = delete;
 
+    //=========================================================================
+    // JITBackend interface implementation
+    //=========================================================================
+
     /**
      * Compile an xad::JITGraph with SSE2 scalar instruction set.
      */
-    void compile(const xad::JITGraph& jitGraph)
+    void compile(const xad::JITGraph& jitGraph) override
     {
         cleanup();
 
@@ -238,14 +239,21 @@ class ForgeBackend
             throw std::runtime_error(std::string("Forge buffer creation failed: ") + forge_get_last_error());
     }
 
-    // =========================================================================
-    // Lane-based API (VECTOR_WIDTH = 1 for scalar)
-    // =========================================================================
+    void reset() override
+    {
+        cleanup();
+        inputIds_.clear();
+        outputIds_.clear();
+    }
+
+    std::size_t vectorWidth() const override { return 1; }
+    std::size_t numInputs() const override { return inputIds_.size(); }
+    std::size_t numOutputs() const override { return outputIds_.size(); }
 
     /**
-     * Set value for an input (1 value for scalar)
+     * Set value for an input.
      */
-    void setInputLanes(std::size_t inputIndex, const double* values)
+    void setInput(std::size_t inputIndex, const double* values) override
     {
         if (inputIndex >= inputIds_.size())
             throw std::runtime_error("Input index out of range");
@@ -253,28 +261,33 @@ class ForgeBackend
     }
 
     /**
-     * Get output value (1 value for scalar)
+     * Execute forward pass only.
      */
-    void getOutputLanes(std::size_t outputIndex, double* output) const
-    {
-        if (outputIndex >= outputIds_.size())
-            throw std::runtime_error("Output index out of range");
-        forge_buffer_get_lanes(buffer_, outputIds_[outputIndex], output);
-    }
-
-    /**
-     * Execute forward + backward in one call
-     */
-    void forwardAndBackward(const double* outputAdjoints, double* outputs,
-                           std::vector<std::array<double, VECTOR_WIDTH>>& inputGradients)
+    void forward(double* outputs) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
 
-        if (inputGradients.size() != inputIds_.size())
-            throw std::runtime_error("Input gradients array size mismatch");
+        // Clear gradients and execute (Forge always does forward+backward)
+        forge_buffer_clear_gradients(buffer_);
+        ForgeError err = forge_execute(kernel_, buffer_);
+        if (err != FORGE_SUCCESS)
+            throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
-        (void)outputAdjoints;  // Forge auto-seeds to 1.0
+        // Get outputs
+        for (std::size_t i = 0; i < outputIds_.size(); ++i)
+        {
+            forge_buffer_get_lanes(buffer_, outputIds_[i], outputs + i);
+        }
+    }
+
+    /**
+     * Execute forward + backward in one call.
+     */
+    void forwardAndBackward(double* outputs, double* inputGradients) override
+    {
+        if (!kernel_ || !buffer_)
+            throw std::runtime_error("Backend not compiled");
 
         // Clear gradients and execute
         forge_buffer_clear_gradients(buffer_);
@@ -282,22 +295,22 @@ class ForgeBackend
         if (err != FORGE_SUCCESS)
             throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
-        // Get outputs (first output only for now)
-        forge_buffer_get_lanes(buffer_, outputIds_[0], outputs);
+        // Get outputs
+        for (std::size_t i = 0; i < outputIds_.size(); ++i)
+        {
+            forge_buffer_get_lanes(buffer_, outputIds_[i], outputs + i);
+        }
 
         // Get input gradients
         for (std::size_t i = 0; i < inputIds_.size(); ++i)
         {
-            forge_buffer_get_gradient_lanes(buffer_, &inputIds_[i], 1, inputGradients[i].data());
+            forge_buffer_get_gradient_lanes(buffer_, &inputIds_[i], 1, inputGradients + i);
         }
     }
 
     // =========================================================================
-    // Accessors
+    // Additional Accessors
     // =========================================================================
-
-    std::size_t numInputs() const { return inputIds_.size(); }
-    std::size_t numOutputs() const { return outputIds_.size(); }
 
     const std::vector<uint32_t>& inputIds() const { return inputIds_; }
     const std::vector<uint32_t>& outputIds() const { return outputIds_; }
@@ -314,13 +327,6 @@ class ForgeBackend
 
     ForgeBackend* buffer() { return this; }
     const ForgeBackend* buffer() const { return this; }
-
-    void reset()
-    {
-        cleanup();
-        inputIds_.clear();
-        outputIds_.clear();
-    }
 
   private:
     void cleanup()

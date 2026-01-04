@@ -1,7 +1,7 @@
 /*
  * xad-forge C API Backend Test Suite
  *
- * Tests ForgeBackend (which uses the C API internally) with lane-based API:
+ * Tests ForgeBackend (which uses the C API internally):
  * - Forward pass values
  * - Backward pass derivatives (adjoint computation)
  * - Re-evaluation pattern (compile once, run many times)
@@ -19,7 +19,6 @@
 #include <gtest/gtest.h>
 #include <cmath>
 #include <vector>
-#include <array>
 #include <memory>
 
 namespace {
@@ -52,8 +51,6 @@ T f3(const T& x, const T& y)
 
 class CAPIBackendTest : public ::testing::Test {
 protected:
-    static constexpr int LANES = xad::forge::ForgeBackend::VECTOR_WIDTH;
-
     void SetUp() override {}
     void TearDown() override {}
 };
@@ -80,17 +77,15 @@ TEST_F(CAPIBackendTest, ForwardLinearFunction)
 
     for (double input : inputs)
     {
-        double inputLanes[LANES] = {input};
-        backend.setInputLanes(0, inputLanes);
+        backend.setInput(0, &input);
 
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double output;
+        double inputGradient;
+        backend.forwardAndBackward(&output, &inputGradient);
 
         // Expected: f(x) = 3x + 2
         double expected = 3.0 * input + 2.0;
-        EXPECT_NEAR(expected, outputs[0], 1e-10)
+        EXPECT_NEAR(expected, output, 1e-10)
             << "Forward mismatch at input " << input;
     }
 }
@@ -117,19 +112,17 @@ TEST_F(CAPIBackendTest, DerivativeLinearFunction)
 
     for (double input : inputs)
     {
-        double inputLanes[LANES] = {input};
-        backend.setInputLanes(0, inputLanes);
+        backend.setInput(0, &input);
 
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double output;
+        double inputGradient;
+        backend.forwardAndBackward(&output, &inputGradient);
 
         // Expected derivative: f'(x) = 3 (constant for all inputs)
         double expectedDeriv = 3.0;
-        EXPECT_NEAR(expectedDeriv, inputGradients[0][0], 1e-10)
+        EXPECT_NEAR(expectedDeriv, inputGradient, 1e-10)
             << "Derivative mismatch at input " << input
-            << " - got " << inputGradients[0][0] << " expected " << expectedDeriv;
+            << " - got " << inputGradient << " expected " << expectedDeriv;
     }
 }
 
@@ -150,24 +143,22 @@ TEST_F(CAPIBackendTest, DerivativeQuadraticFunction)
 
     for (double input : inputs)
     {
-        double inputLanes[LANES] = {input};
-        backend.setInputLanes(0, inputLanes);
+        backend.setInput(0, &input);
 
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double output;
+        double inputGradient;
+        backend.forwardAndBackward(&output, &inputGradient);
 
         // Expected: f(x) = x^2 + 3x
         double expectedOutput = input * input + 3.0 * input;
-        EXPECT_NEAR(expectedOutput, outputs[0], 1e-10)
+        EXPECT_NEAR(expectedOutput, output, 1e-10)
             << "Forward mismatch at input " << input;
 
         // Expected derivative: f'(x) = 2x + 3
         double expectedDeriv = 2.0 * input + 3.0;
-        EXPECT_NEAR(expectedDeriv, inputGradients[0][0], 1e-10)
+        EXPECT_NEAR(expectedDeriv, inputGradient, 1e-10)
             << "Derivative mismatch at input " << input
-            << " - got " << inputGradients[0][0] << " expected " << expectedDeriv;
+            << " - got " << inputGradient << " expected " << expectedDeriv;
     }
 }
 
@@ -194,30 +185,27 @@ TEST_F(CAPIBackendTest, DerivativeTwoInputFunction)
         double xval = inputs[i].first;
         double yval = inputs[i].second;
 
-        double xLanes[LANES] = {xval};
-        double yLanes[LANES] = {yval};
-        backend.setInputLanes(0, xLanes);
-        backend.setInputLanes(1, yLanes);
+        backend.setInput(0, &xval);
+        backend.setInput(1, &yval);
 
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(2);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double output;
+        double inputGradients[2];
+        backend.forwardAndBackward(&output, inputGradients);
 
         // Expected: f(x,y) = x*y + x^2
         double expectedOutput = xval * yval + xval * xval;
-        EXPECT_NEAR(expectedOutput, outputs[0], 1e-10)
+        EXPECT_NEAR(expectedOutput, output, 1e-10)
             << "Forward mismatch at (" << xval << ", " << yval << ")";
 
         // Expected: df/dx = y + 2x, df/dy = x
         double expectedDx = yval + 2.0 * xval;
         double expectedDy = xval;
-        EXPECT_NEAR(expectedDx, inputGradients[0][0], 1e-10)
+        EXPECT_NEAR(expectedDx, inputGradients[0], 1e-10)
             << "dx mismatch at (" << xval << ", " << yval << ")"
-            << " - got " << inputGradients[0][0] << " expected " << expectedDx;
-        EXPECT_NEAR(expectedDy, inputGradients[1][0], 1e-10)
+            << " - got " << inputGradients[0] << " expected " << expectedDx;
+        EXPECT_NEAR(expectedDy, inputGradients[1], 1e-10)
             << "dy mismatch at (" << xval << ", " << yval << ")"
-            << " - got " << inputGradients[1][0] << " expected " << expectedDy;
+            << " - got " << inputGradients[1] << " expected " << expectedDy;
     }
 }
 
@@ -261,20 +249,19 @@ TEST_F(CAPIBackendTest, MatchesXADTapeReference)
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
-        double inputLanes[LANES] = {inputs[i]};
-        backend.setInputLanes(0, inputLanes);
+        double inputVal = inputs[i];
+        backend.setInput(0, &inputVal);
 
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double output;
+        double inputGradient;
+        backend.forwardAndBackward(&output, &inputGradient);
 
-        EXPECT_NEAR(refOutputs[i], outputs[0], 1e-10)
+        EXPECT_NEAR(refOutputs[i], output, 1e-10)
             << "C API output doesn't match XAD Tape at input " << inputs[i];
 
-        EXPECT_NEAR(refDerivatives[i], inputGradients[0][0], 1e-10)
+        EXPECT_NEAR(refDerivatives[i], inputGradient, 1e-10)
             << "C API derivative doesn't match XAD Tape at input " << inputs[i]
-            << " - C API: " << inputGradients[0][0] << ", Tape: " << refDerivatives[i];
+            << " - C API: " << inputGradient << ", Tape: " << refDerivatives[i];
     }
 }
 
