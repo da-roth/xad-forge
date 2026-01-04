@@ -36,7 +36,7 @@ double out;
 for (double input : {1.0, 2.0, 3.0, 4.0, 5.0})
 {
     value(x) = input;
-    jit.forward(&out, 1);
+    jit.forward(&out);
 
     jit.clearDerivatives();
     derivative(y) = 1.0;
@@ -64,12 +64,11 @@ avx.compile(jit.getGraph());
 
 // Evaluate 4 inputs at once
 double inputs[4] = {1.0, 2.0, 3.0, 4.0};
-avx.setInputLanes(0, inputs);
+avx.setInput(0, inputs);
 
 double outputs[4];
-double outputAdjoints[4] = {1.0, 1.0, 1.0, 1.0};
-std::vector<std::array<double, 4>> inputGradients(1);
-avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+double inputGradients[4];
+avx.forwardAndBackward(outputs, inputGradients);
 ```
 
 ## Building

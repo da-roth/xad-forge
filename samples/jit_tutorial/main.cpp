@@ -20,7 +20,6 @@
 #include <xad-forge/ForgeBackendAVX.hpp>
 #include <XAD/XAD.hpp>
 
-#include <array>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -95,7 +94,7 @@ int main()
 
         // Evaluate at x=1 (same as recording)
         double out = 0.0;
-        jit.forward(&out, 1);
+        jit.forward(&out);
         jit.setDerivative(y.getSlot(), 1.0);
         jit.computeAdjoints();
         std::cout << "   x=1: y=" << out << ", dy/dx=" << jit.getDerivative(x.getSlot()) << "\n";
@@ -104,7 +103,7 @@ int main()
         // Evaluate at x=3 (different branch should be taken)
         x = 3.0;
         jit.clearDerivatives();
-        jit.forward(&out, 1);
+        jit.forward(&out);
         jit.setDerivative(y.getSlot(), 1.0);
         jit.computeAdjoints();
         std::cout << "   x=3: y=" << out << ", dy/dx=" << jit.getDerivative(x.getSlot())
@@ -130,7 +129,7 @@ int main()
 
         // Evaluate at x=1
         double out = 0.0;
-        jit.forward(&out, 1);
+        jit.forward(&out);
         jit.setDerivative(y.getSlot(), 1.0);
         jit.computeAdjoints();
         std::cout << "   x=1: y=" << out << ", dy/dx=" << jit.getDerivative(x.getSlot()) << "\n";
@@ -139,7 +138,7 @@ int main()
         // Evaluate at x=3
         x = 3.0;
         jit.clearDerivatives();
-        jit.forward(&out, 1);
+        jit.forward(&out);
         jit.setDerivative(y.getSlot(), 1.0);
         jit.computeAdjoints();
         std::cout << "   x=3: y=" << out << ", dy/dx=" << jit.getDerivative(x.getSlot()) << "\n";
@@ -166,24 +165,21 @@ int main()
         xad::forge::ForgeBackend backend;
         backend.compile(jit.getGraph());
 
-        constexpr int LANES = xad::forge::ForgeBackend::VECTOR_WIDTH;
-
         // Evaluate at x=1
-        double inputLanes[LANES] = {1.0};
-        backend.setInputLanes(0, inputLanes);
-        double outputAdjoints[LANES] = {1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
-        std::cout << "   x=1: y=" << outputs[0] << ", dy/dx=" << inputGradients[0][0] << "\n";
-        rows.push_back({"Forge ForgeBackend", 1.0, outputs[0], inputGradients[0][0], ""});
+        double input = 1.0;
+        backend.setInput(0, &input);
+        double output;
+        double inputGradient;
+        backend.forwardAndBackward(&output, &inputGradient);
+        std::cout << "   x=1: y=" << output << ", dy/dx=" << inputGradient << "\n";
+        rows.push_back({"Forge ForgeBackend", 1.0, output, inputGradient, ""});
 
         // Evaluate at x=3
-        inputLanes[0] = 3.0;
-        backend.setInputLanes(0, inputLanes);
-        backend.forwardAndBackward(outputAdjoints, outputs, inputGradients);
-        std::cout << "   x=3: y=" << outputs[0] << ", dy/dx=" << inputGradients[0][0] << "\n";
-        rows.push_back({"Forge ForgeBackend", 3.0, outputs[0], inputGradients[0][0], ""});
+        input = 3.0;
+        backend.setInput(0, &input);
+        backend.forwardAndBackward(&output, &inputGradient);
+        std::cout << "   x=3: y=" << output << ", dy/dx=" << inputGradient << "\n";
+        rows.push_back({"Forge ForgeBackend", 3.0, output, inputGradient, ""});
     }
 
     // -------------------------------------------------------------------------
@@ -208,25 +204,24 @@ int main()
 
         // Evaluate 4 different inputs simultaneously
         // x = {0.5, 1.5, 2.5, 3.5} - first two take true branch, last two take false branch
-        constexpr int LANES = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
-        double inputLanes[LANES] = {0.5, 1.5, 2.5, 3.5};
-        avx.setInputLanes(0, inputLanes);
+        constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
+        double inputBatch[BATCH_SIZE] = {0.5, 1.5, 2.5, 3.5};
+        avx.setInput(0, inputBatch);
 
-        double outputAdjoints[LANES] = {1.0, 1.0, 1.0, 1.0};
-        double outputs[LANES];
-        std::vector<std::array<double, LANES>> inputGradients(1);
-        avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+        double outputs[BATCH_SIZE];
+        double inputGradients[BATCH_SIZE];
+        avx.forwardAndBackward(outputs, inputGradients);
 
         std::cout << "   Inputs:  x = {0.5, 1.5, 2.5, 3.5}\n";
         std::cout << "   Outputs: y = {" << outputs[0] << ", " << outputs[1]
                   << ", " << outputs[2] << ", " << outputs[3] << "}\n";
-        std::cout << "   dy/dx:       {" << inputGradients[0][0] << ", " << inputGradients[0][1]
-                  << ", " << inputGradients[0][2] << ", " << inputGradients[0][3] << "}\n";
+        std::cout << "   dy/dx:       {" << inputGradients[0] << ", " << inputGradients[1]
+                  << ", " << inputGradients[2] << ", " << inputGradients[3] << "}\n";
         std::cout << "   Expected: y = {0.5, 1.5, 17.5, 24.5}, dy/dx = {1, 1, 7, 7}\n";
 
-        for (int i = 0; i < LANES; ++i)
+        for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            rows.push_back({"Forge ForgeBackendAVX", inputLanes[i], outputs[i], inputGradients[0][i], ""});
+            rows.push_back({"Forge ForgeBackendAVX", inputBatch[i], outputs[i], inputGradients[i], ""});
         }
     }
 

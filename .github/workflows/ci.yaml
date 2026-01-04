@@ -72,10 +72,10 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout XAD
+      - name: Checkout XAD (xad-jit fork with JIT support)
         uses: actions/checkout@v4
         with:
-          repository: auto-differentiation/xad
+          repository: da-roth/xad-jit
           path: xad
 
       - name: Checkout forge
@@ -182,10 +182,10 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout XAD
+      - name: Checkout XAD (xad-jit fork with JIT support)
         uses: actions/checkout@v4
         with:
-          repository: auto-differentiation/xad
+          repository: da-roth/xad-jit
           path: xad
 
       - name: Checkout forge
@@ -264,10 +264,10 @@ jobs:
         with:
           path: xad-forge
 
-      - name: Checkout XAD
+      - name: Checkout XAD (xad-jit fork with JIT support)
         uses: actions/checkout@v4
         with:
-          repository: auto-differentiation/xad
+          repository: da-roth/xad-jit
           path: xad
 
       - name: Checkout forge

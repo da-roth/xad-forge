@@ -85,7 +85,7 @@ jit.compile();  // Compiles to native x86!
 // Evaluate with different inputs
 double out;
 value(x) = 3.0;
-jit.forward(&out, 1);  // out = 21
+jit.forward(&out);  // out = 21
 ```
 
 ### AVXBackend
@@ -104,15 +104,14 @@ avx.compile(jit.getGraph());
 
 // Evaluate 4 inputs at once
 double inputs[4] = {0.5, 1.5, 2.5, 3.5};
-avx.setInputLanes(0, inputs);
+avx.setInput(0, inputs);
 
 double outputs[4];
-double outputAdjoints[4] = {1.0, 1.0, 1.0, 1.0};
-std::vector<std::array<double, 4>> inputGradients(1);
-avx.forwardAndBackward(outputAdjoints, outputs, inputGradients);
+double inputGradients[4];
+avx.forwardAndBackward(outputs, inputGradients);
 
 // outputs = {0.5, 1.5, 17.5, 24.5}
-// gradients = {1, 1, 7, 7}
+// inputGradients = {1, 1, 7, 7}
 ```
 
 Note how different lanes can take different branches: inputs 0.5 and 1.5 take the true branch (`1*x`), while 2.5 and 3.5 take the false branch (`7*x`).
