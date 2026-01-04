@@ -312,7 +312,7 @@ TEST_F(AVXBackendTest, ReEvaluateManyBatches)
         double inputBatch[BATCH_SIZE];
         for (int i = 0; i < BATCH_SIZE; ++i)
         {
-            inputBatch[i] = static_cast<double>(batch * BATCH_SIZE + lane) / 50.0 - 4.0;
+            inputBatch[i] = static_cast<double>(batch * BATCH_SIZE + i) / 50.0 - 4.0;
         }
         avx.setInput(0, inputBatch);
 
