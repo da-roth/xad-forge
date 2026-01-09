@@ -35,14 +35,14 @@ endif()
 # Find dependencies
 ##############################################################################
 
-# Find XAD (from xad-jit fork which includes JIT support)
+# Find XAD (with JIT support enabled)
 # First check if xad target already exists (added as subdirectory)
 if(NOT TARGET XAD::xad)
-    # Try to find xad-jit as a sibling directory
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../xad-jit")
-        message(STATUS "xad-forge: Using xad-jit from sibling directory")
+    # Try to find xad as a sibling directory
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../xad")
+        message(STATUS "xad-forge: Using xad from sibling directory")
         set(XAD_ENABLE_JIT ON CACHE BOOL "Enable JIT support" FORCE)
-        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../xad-jit" "${CMAKE_CURRENT_BINARY_DIR}/xad-jit")
+        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../xad" "${CMAKE_CURRENT_BINARY_DIR}/xad")
     else()
         find_package(XAD CONFIG REQUIRED)
     endif()
