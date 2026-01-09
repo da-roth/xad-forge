@@ -162,7 +162,7 @@ int main()
         jit.registerOutput(y);
 
         // Compile to native x86 code via Forge
-        xad::forge::ForgeBackend backend;
+        xad::forge::ForgeBackend<double> backend;
         backend.compile(jit.getGraph());
 
         // Evaluate at x=1
@@ -199,12 +199,12 @@ int main()
         jit.registerOutput(y);
 
         // Compile AVX backend from the JIT graph
-        xad::forge::ForgeBackendAVX avx;
+        xad::forge::ForgeBackendAVX<double> avx;
         avx.compile(jit.getGraph());
 
         // Evaluate 4 different inputs simultaneously
         // x = {0.5, 1.5, 2.5, 3.5} - first two take true branch, last two take false branch
-        constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
+        constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX<double>::VECTOR_WIDTH;
         double inputBatch[BATCH_SIZE] = {0.5, 1.5, 2.5, 3.5};
         avx.setInput(0, inputBatch);
 

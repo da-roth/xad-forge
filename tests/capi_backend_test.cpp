@@ -72,7 +72,7 @@ TEST_F(CAPIBackendTest, ForwardLinearFunction)
     jit.registerOutput(y);
 
     // Compile backend directly
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (double input : inputs)
@@ -107,7 +107,7 @@ TEST_F(CAPIBackendTest, DerivativeLinearFunction)
     xad::AD y = f1(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (double input : inputs)
@@ -138,7 +138,7 @@ TEST_F(CAPIBackendTest, DerivativeQuadraticFunction)
     xad::AD y = f2(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (double input : inputs)
@@ -177,7 +177,7 @@ TEST_F(CAPIBackendTest, DerivativeTwoInputFunction)
     xad::AD z = f3(x, y);
     jit.registerOutput(z);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -244,7 +244,7 @@ TEST_F(CAPIBackendTest, MatchesXADTapeReference)
     xad::AD y = f2(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)

@@ -67,7 +67,7 @@ double f4ABool_double(double x)
 class AVXBackendTest : public ::testing::Test {
 protected:
     /// Number of parallel evaluations per call (4 for AVX2)
-    static constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX::VECTOR_WIDTH;
+    static constexpr int BATCH_SIZE = xad::forge::ForgeBackendAVX<double>::VECTOR_WIDTH;
 
     void SetUp() override {}
     void TearDown() override {}
@@ -117,7 +117,7 @@ TEST_F(AVXBackendTest, LinearFunctionBatched)
     jit.registerOutput(y);
 
     // Compile AVX backend from JIT graph
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     // Process in batches of 4
@@ -161,7 +161,7 @@ TEST_F(AVXBackendTest, QuadraticFunctionBatched)
     xad::AD y = f2(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
@@ -202,7 +202,7 @@ TEST_F(AVXBackendTest, MathFunctionsBatched)
     xad::AD y = f3(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
@@ -258,7 +258,7 @@ TEST_F(AVXBackendTest, ABoolBranchingBatched)
     xad::AD y = f4ABool(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     for (std::size_t batch = 0; batch < inputs.size(); batch += BATCH_SIZE)
@@ -301,7 +301,7 @@ TEST_F(AVXBackendTest, ReEvaluateManyBatches)
     jit.registerOutput(y);
 
     // Compile once
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     // Run 100 batches (400 evaluations)
@@ -380,7 +380,7 @@ TEST_F(AVXBackendTest, TwoInputFunctionBatched)
     xad::AD z = x * y + x * x;
     jit.registerOutput(z);
 
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
     avx.compile(jit.getGraph());
 
     ASSERT_EQ(2u, avx.numInputs());
@@ -420,7 +420,7 @@ TEST_F(AVXBackendTest, TwoInputFunctionBatched)
 
 TEST_F(AVXBackendTest, ResetAndRecompile)
 {
-    xad::forge::ForgeBackendAVX avx;
+    xad::forge::ForgeBackendAVX<double> avx;
 
     // First function: f(x) = 2x
     {

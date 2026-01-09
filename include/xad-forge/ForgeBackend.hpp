@@ -44,8 +44,9 @@
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
-#include <vector>
 #include <string>
+#include <type_traits>
+#include <vector>
 
 namespace xad
 {
@@ -58,17 +59,25 @@ namespace forge
  * Uses the stable C API for binary compatibility with precompiled Forge packages.
  * Processes one evaluation per kernel execution using SSE2 scalar instructions.
  *
+ * Note: Forge currently only supports double precision. This backend is templated
+ * to match the JITBackend<Scalar> interface, but only Scalar=double is supported.
+ * Using Scalar=float will result in a static_assert failure.
+ *
  * Usage pattern (via JITCompiler):
  *   xad::JITCompiler<double> jit;
  *   // ... record graph ...
- *   jit.setBackend(std::make_unique<xad::forge::ForgeBackend>());
+ *   jit.setBackend(std::make_unique<xad::forge::ForgeBackend<double>>());
  *   jit.compile();
  *   jit.setInput(0, &inputValue);
  *   double output, gradient;
  *   jit.forwardAndBackward(&output, &gradient);
  */
-class ForgeBackend : public xad::JITBackend
+template <class Scalar>
+class ForgeBackend : public xad::JITBackend<Scalar>
 {
+    static_assert(std::is_same<Scalar, double>::value,
+                  "ForgeBackend only supports double precision. Forge does not currently support float.");
+
   public:
     explicit ForgeBackend(bool useGraphOptimizations = false)
         : useOptimizations_(useGraphOptimizations)
@@ -253,7 +262,7 @@ class ForgeBackend : public xad::JITBackend
     /**
      * Set value for an input.
      */
-    void setInput(std::size_t inputIndex, const double* values) override
+    void setInput(std::size_t inputIndex, const Scalar* values) override
     {
         if (inputIndex >= inputIds_.size())
             throw std::runtime_error("Input index out of range");
@@ -263,7 +272,7 @@ class ForgeBackend : public xad::JITBackend
     /**
      * Execute forward pass only.
      */
-    void forward(double* outputs) override
+    void forward(Scalar* outputs) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
@@ -284,7 +293,7 @@ class ForgeBackend : public xad::JITBackend
     /**
      * Execute forward + backward in one call.
      */
-    void forwardAndBackward(double* outputs, double* inputGradients) override
+    void forwardAndBackward(Scalar* outputs, Scalar* inputGradients) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");

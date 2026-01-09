@@ -113,7 +113,7 @@ TEST_F(ScalarBackendTest, ReEvaluateLinearFunction)
     jit.registerOutput(y);
 
     // Compile with ForgeBackend
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     // Re-evaluate for each input using lane-based API
@@ -148,7 +148,7 @@ TEST_F(ScalarBackendTest, ReEvaluateQuadraticFunction)
     xad::AD y = f2(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -183,7 +183,7 @@ TEST_F(ScalarBackendTest, ReEvaluateMathFunctions)
     xad::AD y = f3(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -233,7 +233,7 @@ TEST_F(ScalarBackendTest, ReEvaluateABoolBranching)
     xad::AD y = f4ABool(x);
     jit.registerOutput(y);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -301,7 +301,7 @@ TEST_F(ScalarBackendTest, ReEvaluateTwoInputFunction)
     xad::AD z = x * y + x * x + y * y;
     jit.registerOutput(z);
 
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     // Re-evaluate
@@ -340,7 +340,7 @@ TEST_F(ScalarBackendTest, ManyReEvaluations)
     jit.registerOutput(y);
 
     // Compile once
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
     backend.compile(jit.getGraph());
 
     const int NUM_EVALUATIONS = 1000;
@@ -369,7 +369,7 @@ TEST_F(ScalarBackendTest, ManyReEvaluations)
 
 TEST_F(ScalarBackendTest, ResetAndRecompile)
 {
-    xad::forge::ForgeBackend backend;
+    xad::forge::ForgeBackend<double> backend;
 
     // First function: f(x) = 2x
     {

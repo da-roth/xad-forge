@@ -46,6 +46,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace xad
@@ -59,10 +60,14 @@ namespace forge
  * Uses the stable C API for binary compatibility with precompiled Forge packages.
  * Supports 4 parallel evaluations per kernel execution using AVX2 SIMD instructions.
  *
+ * Note: Forge currently only supports double precision. This backend is templated
+ * to match the JITBackend<Scalar> interface, but only Scalar=double is supported.
+ * Using Scalar=float will result in a static_assert failure.
+ *
  * Usage pattern (via JITCompiler):
  *   xad::JITCompiler<double> jit;
  *   // ... record graph ...
- *   jit.setBackend(std::make_unique<xad::forge::ForgeBackendAVX>());
+ *   jit.setBackend(std::make_unique<xad::forge::ForgeBackendAVX<double>>());
  *   jit.compile();
  *
  *   double inputs[4] = {1.0, 2.0, 3.0, 4.0};  // 4 parallel evaluations
@@ -70,10 +75,14 @@ namespace forge
  *   double outputs[4], gradients[4];
  *   jit.forwardAndBackward(outputs, gradients);
  */
-class ForgeBackendAVX : public xad::JITBackend
+template <class Scalar>
+class ForgeBackendAVX : public xad::JITBackend<Scalar>
 {
+    static_assert(std::is_same<Scalar, double>::value,
+                  "ForgeBackendAVX only supports double precision. Forge does not currently support float.");
+
   public:
-    /// Number of parallel evaluations (4 for AVX2 backend)
+    /// Number of parallel evaluations (4 for AVX2 backend with double)
     static constexpr int VECTOR_WIDTH = 4;
 
     explicit ForgeBackendAVX(bool useGraphOptimizations = false)
@@ -273,7 +282,7 @@ class ForgeBackendAVX : public xad::JITBackend
     /**
      * Set 4 values for an input (one per parallel evaluation).
      */
-    void setInput(std::size_t inputIndex, const double* values) override
+    void setInput(std::size_t inputIndex, const Scalar* values) override
     {
         if (inputIndex >= inputIds_.size())
             throw std::runtime_error("Input index out of range");
@@ -283,7 +292,7 @@ class ForgeBackendAVX : public xad::JITBackend
     /**
      * Execute forward pass only.
      */
-    void forward(double* outputs) override
+    void forward(Scalar* outputs) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
@@ -304,7 +313,7 @@ class ForgeBackendAVX : public xad::JITBackend
     /**
      * Execute forward + backward in one call.
      */
-    void forwardAndBackward(double* outputs, double* inputGradients) override
+    void forwardAndBackward(Scalar* outputs, Scalar* inputGradients) override
     {
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
