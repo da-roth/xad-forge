@@ -6,6 +6,33 @@ This library implements JIT backends for XAD using the [Forge](https://github.co
 
 All backends use the Forge C API for binary compatibility across compilers.
 
+## When to Use JIT
+
+XAD's default tape-based AAD is highly optimized for workflows where each computation is evaluated once or a few times. It uses expression templates and avoids recording overhead where possible.
+
+However, for workflows requiring **repeated evaluation with different inputs**—such as Monte Carlo simulation, risk scenarios, or XVA calculations—a different approach is more efficient: record the computation once into a graph, compile it to native machine code, then re-evaluate as many times as needed.
+
+This JIT approach has an upfront compilation cost, but each subsequent evaluation is significantly faster. The crossover point is typically around 5-20 evaluations depending on the workflow, after which the JIT approach outperforms tape replay.
+
+**Use tape-based AAD when:**
+- Each computation is evaluated once or a few times
+- The computation structure changes between evaluations
+
+**Use JIT when:**
+- Evaluating the same computation many times with different inputs
+- Running Monte Carlo simulations
+- Computing risk sensitivities across many scenarios
+- XVA and other batch pricing workloads
+
+## Backends
+
+xad-forge provides two backends:
+
+| Backend | Description | Use case |
+|---------|-------------|----------|
+| `ScalarBackend` | Compiles to scalar x86-64 code | General purpose, replaces interpreter |
+| `AVXBackend` | Compiles to AVX2 SIMD code | Batch evaluation, 4 inputs in parallel |
+
 ## Usage
 
 XAD's JIT support allows recording a computation once and re-evaluating it with different inputs. By default, XAD uses an interpreter. xad-forge provides compiled backends instead.
