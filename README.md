@@ -132,3 +132,4 @@ xad-forge is licensed under the [zlib license](LICENSE.md).
 
 - [XAD](https://github.com/auto-differentiation/xad) — Automatic differentiation library
 - [Forge](https://github.com/da-roth/forge) — JIT compiler for computation graphs
+- [QuantLib-Risks-Cpp-Forge](https://github.com/da-roth/QuantLib-Risks-Cpp-Forge) — [QuantLib-Risks](https://github.com/auto-differentiation/QuantLib-Risks-Cpp) with Forge JIT integration
