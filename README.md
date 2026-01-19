@@ -24,6 +24,8 @@ This JIT approach has an upfront compilation cost, but each subsequent evaluatio
 - Computing risk sensitivities across many scenarios
 - XVA and other batch pricing workloads
 
+See [benchmarks](docs/benchmarks.md) for detailed performance comparisons showing crossover points and speedups.
+
 ## Backends
 
 xad-forge provides two backends:
