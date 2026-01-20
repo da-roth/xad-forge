@@ -62,7 +62,13 @@ inline void loadCustomBackendFromEnv()
             if (err != FORGE_SUCCESS)
             {
                 std::cerr << "xad-forge: Warning: Failed to load custom backend from '"
-                          << backendPath << "': " << forge_error_string(err) << std::endl;
+                          << backendPath << "': " << forge_error_string(err);
+                const char* detail = forge_get_last_error();
+                if (detail && detail[0] != '\0')
+                {
+                    std::cerr << " (" << detail << ")";
+                }
+                std::cerr << std::endl;
             }
         }
     });
