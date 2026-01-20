@@ -40,12 +40,13 @@
 // Forge C API - stable ABI
 #include <forge_c_api.h>
 
+// Shared utilities (custom backend loading)
+#include <xad-forge/ForgeBackendCommon.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -55,38 +56,6 @@ namespace xad
 {
 namespace forge
 {
-
-namespace detail
-{
-
-/**
- * Thread-safe helper to load custom Forge backend from environment variable.
- *
- * Checks XAD_FORGE_BACKEND_PATH environment variable. If set, attempts to load
- * the specified shared library as a Forge backend. This is done only once per
- * process, regardless of how many backend instances are created.
- *
- * On failure, prints a warning to stderr but does not throw. The subsequent
- * instruction set selection will fail if the required backend isn't available.
- */
-inline void loadCustomBackendFromEnv()
-{
-    static std::once_flag flag;
-    std::call_once(flag, []() {
-        const char* backendPath = std::getenv("XAD_FORGE_BACKEND_PATH");
-        if (backendPath && backendPath[0] != '\0')
-        {
-            ForgeError err = forge_load_backend(backendPath);
-            if (err != FORGE_SUCCESS)
-            {
-                std::cerr << "xad-forge: Warning: Failed to load custom backend from '"
-                          << backendPath << "': " << forge_error_string(err) << std::endl;
-            }
-        }
-    });
-}
-
-}  // namespace detail
 
 /**
  * Scalar Backend using Forge C API - implements xad::JITBackend interface.
