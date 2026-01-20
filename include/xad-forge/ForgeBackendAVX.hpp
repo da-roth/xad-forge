@@ -48,6 +48,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -95,12 +96,16 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         , config_(nullptr)
         , kernel_(nullptr)
         , buffer_(nullptr)
+        , instanceId_(nextInstanceId_++)
     {
+        detail::debugLog("ForgeBackendAVX constructor", instanceId_);
     }
 
     ~ForgeBackendAVX() override
     {
+        detail::debugLog("ForgeBackendAVX destructor START", instanceId_);
         cleanup();
+        detail::debugLog("ForgeBackendAVX destructor END", instanceId_);
     }
 
     ForgeBackendAVX(ForgeBackendAVX&& other) noexcept
@@ -151,10 +156,15 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
      */
     void compile(const xad::JITGraph& jitGraph) override
     {
+        detail::debugLog("compile() START", instanceId_);
+        detail::debugLog("  jitGraph nodes", jitGraph.nodeCount());
+        detail::debugLog("  jitGraph const_pool size", jitGraph.const_pool.size());
         cleanup();
 
         // Create graph
+        detail::debugLog("  Creating Forge graph...");
         graph_ = forge_graph_create();
+        detail::debugLog("  graph_", static_cast<void*>(graph_));
         if (!graph_)
             throw std::runtime_error(std::string("Forge graph creation failed: ") + forge_get_last_error());
 
@@ -255,10 +265,13 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         }
 
         // Load custom backend if specified via environment variable (thread-safe, once per process)
+        detail::debugLog("  Loading custom backend if specified...");
         detail::loadCustomBackendFromEnv();
 
         // Create config
+        detail::debugLog("  Creating config...");
         config_ = useOptimizations_ ? forge_config_create_fast() : forge_config_create_default();
+        detail::debugLog("  config_", static_cast<void*>(config_));
         if (!config_)
             throw std::runtime_error("Forge config creation failed");
 
@@ -277,14 +290,20 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         }
 
         // Compile
+        detail::debugLog("  Compiling kernel...");
         kernel_ = forge_compile(graph_, config_);
+        detail::debugLog("  kernel_", static_cast<void*>(kernel_));
         if (!kernel_)
             throw std::runtime_error(std::string("Forge AVX2 compilation failed: ") + forge_get_last_error());
 
         // Create buffer
+        detail::debugLog("  Creating buffer...");
         buffer_ = forge_buffer_create(graph_, kernel_);
+        detail::debugLog("  buffer_", static_cast<void*>(buffer_));
         if (!buffer_)
             throw std::runtime_error(std::string("Forge AVX2 buffer creation failed: ") + forge_get_last_error());
+
+        detail::debugLog("compile() END", instanceId_);
     }
 
     void reset() override
@@ -316,9 +335,13 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
 
+        detail::debugLog("forward() START", instanceId_);
+
         // Clear gradients and execute (Forge always does forward+backward)
         forge_buffer_clear_gradients(buffer_);
+        detail::debugLog("  calling forge_execute...");
         ForgeError err = forge_execute(kernel_, buffer_);
+        detail::debugLog("  forge_execute returned", static_cast<size_t>(err));
         if (err != FORGE_SUCCESS)
             throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
@@ -327,6 +350,8 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         {
             forge_buffer_get_lanes(buffer_, outputIds_[i], outputs + i * VECTOR_WIDTH);
         }
+
+        detail::debugLog("forward() END", instanceId_);
     }
 
     /**
@@ -337,9 +362,15 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         if (!kernel_ || !buffer_)
             throw std::runtime_error("Backend not compiled");
 
+        ++executionCount_;
+        detail::debugLog("forwardAndBackward() START", instanceId_);
+        detail::debugLog("  execution #", executionCount_);
+
         // Clear gradients and execute
         forge_buffer_clear_gradients(buffer_);
+        detail::debugLog("  calling forge_execute...");
         ForgeError err = forge_execute(kernel_, buffer_);
+        detail::debugLog("  forge_execute returned", static_cast<size_t>(err));
         if (err != FORGE_SUCCESS)
             throw std::runtime_error(std::string("Forge execution failed: ") + forge_get_last_error());
 
@@ -354,6 +385,8 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
         {
             forge_buffer_get_gradient_lanes(buffer_, &inputIds_[i], 1, inputGradients + i * VECTOR_WIDTH);
         }
+
+        detail::debugLog("forwardAndBackward() END", instanceId_);
     }
 
     // =========================================================================
@@ -385,12 +418,37 @@ class ForgeBackendAVX : public xad::JITBackend<Scalar>
   private:
     void cleanup()
     {
-        if (buffer_) { forge_buffer_destroy(buffer_); buffer_ = nullptr; }
-        if (kernel_) { forge_kernel_destroy(kernel_); kernel_ = nullptr; }
-        if (config_) { forge_config_destroy(config_); config_ = nullptr; }
-        if (graph_) { forge_graph_destroy(graph_); graph_ = nullptr; }
+        detail::debugLog("  cleanup() START", instanceId_);
+        if (buffer_)
+        {
+            detail::debugLog("    destroying buffer_", static_cast<void*>(buffer_));
+            forge_buffer_destroy(buffer_);
+            buffer_ = nullptr;
+        }
+        if (kernel_)
+        {
+            detail::debugLog("    destroying kernel_", static_cast<void*>(kernel_));
+            forge_kernel_destroy(kernel_);
+            kernel_ = nullptr;
+        }
+        if (config_)
+        {
+            detail::debugLog("    destroying config_", static_cast<void*>(config_));
+            forge_config_destroy(config_);
+            config_ = nullptr;
+        }
+        if (graph_)
+        {
+            detail::debugLog("    destroying graph_", static_cast<void*>(graph_));
+            forge_graph_destroy(graph_);
+            graph_ = nullptr;
+        }
+        detail::debugLog("  cleanup() END", instanceId_);
     }
 
+    static inline size_t nextInstanceId_ = 0;
+    size_t instanceId_;
+    size_t executionCount_ = 0;
     bool useOptimizations_;
     ForgeGraphHandle graph_;
     ForgeConfigHandle config_;

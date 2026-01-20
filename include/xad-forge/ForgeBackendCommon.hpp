@@ -41,6 +41,56 @@ namespace forge
 namespace detail
 {
 
+//=============================================================================
+// Debug logging - enabled by XAD_FORGE_DEBUG environment variable
+//=============================================================================
+
+/// Check if debug logging is enabled
+inline bool isDebugEnabled()
+{
+    static bool checked = false;
+    static bool enabled = false;
+    if (!checked)
+    {
+        const char* env = std::getenv("XAD_FORGE_DEBUG");
+        enabled = (env && env[0] != '\0' && env[0] != '0');
+        checked = true;
+    }
+    return enabled;
+}
+
+/// Log a simple message
+inline void debugLog(const char* msg)
+{
+    if (isDebugEnabled())
+        std::cerr << "[xad-forge-debug] " << msg << std::endl;
+}
+
+/// Log a message with a string value
+inline void debugLog(const char* msg, const char* detail)
+{
+    if (isDebugEnabled())
+        std::cerr << "[xad-forge-debug] " << msg << ": " << detail << std::endl;
+}
+
+/// Log a message with a numeric value
+inline void debugLog(const char* msg, size_t value)
+{
+    if (isDebugEnabled())
+        std::cerr << "[xad-forge-debug] " << msg << ": " << value << std::endl;
+}
+
+/// Log a message with a pointer value
+inline void debugLog(const char* msg, void* ptr)
+{
+    if (isDebugEnabled())
+        std::cerr << "[xad-forge-debug] " << msg << ": " << ptr << std::endl;
+}
+
+//=============================================================================
+// Backend loading
+//=============================================================================
+
 /**
  * Thread-safe helper to load custom Forge backend from environment variable.
  *
@@ -55,21 +105,38 @@ inline void loadCustomBackendFromEnv()
 {
     static std::once_flag flag;
     std::call_once(flag, []() {
+        debugLog("loadCustomBackendFromEnv() called");
         const char* backendPath = std::getenv("XAD_FORGE_BACKEND_PATH");
         if (backendPath && backendPath[0] != '\0')
         {
+            debugLog("  Loading custom backend from", backendPath);
             ForgeError err = forge_load_backend(backendPath);
             if (err != FORGE_SUCCESS)
             {
                 std::cerr << "xad-forge: Warning: Failed to load custom backend from '"
                           << backendPath << "': " << forge_error_string(err);
-                const char* detail = forge_get_last_error();
-                if (detail && detail[0] != '\0')
+                const char* detailMsg = forge_get_last_error();
+                if (detailMsg && detailMsg[0] != '\0')
                 {
-                    std::cerr << " (" << detail << ")";
+                    std::cerr << " (" << detailMsg << ")";
                 }
                 std::cerr << std::endl;
             }
+            else
+            {
+                debugLog("  Custom backend loaded successfully");
+            }
+        }
+        else
+        {
+            debugLog("  XAD_FORGE_BACKEND_PATH not set, using built-in backends");
+        }
+
+        // Log which instruction set will be used
+        const char* instSet = std::getenv("XAD_FORGE_INSTRUCTION_SET");
+        if (instSet && instSet[0] != '\0')
+        {
+            debugLog("  XAD_FORGE_INSTRUCTION_SET", instSet);
         }
     });
 }
