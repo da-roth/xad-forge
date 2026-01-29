@@ -190,7 +190,15 @@ class ForgeBackend : public xad::JITBackend<Scalar>
 
                 if (a < i) a = nodeIdMap[a];
                 if (b < i) b = nodeIdMap[b];
-                if (c < i) c = nodeIdMap[c];
+
+                // Only remap c for ternary ops (If, IntIf) that actually use it.
+                // For unary/binary ops, c defaults to 0 in XAD which would be
+                // incorrectly remapped to a real node, causing spurious gradient propagation.
+                if (op == FORGE_OP_IF || op == FORGE_OP_INT_IF) {
+                    if (c < i) c = nodeIdMap[c];
+                } else {
+                    c = UINT32_MAX;  // Mark as unused
+                }
 
                 double imm = jitGraph.nodes[i].imm;
                 int isActive = (jitGraph.nodes[i].flags & xad::JITNodeFlags::IsActive) != 0 ? 1 : 0;
